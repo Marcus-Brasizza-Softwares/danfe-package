@@ -30,17 +30,38 @@ class Prod {
   /// Valor total do produto.
   String? vProd;
 
-  /// Indicador de regra de cálculo.
-  String? indRegra;
-
-  /// Valor do item (pode ser calculado ou informado).
-  String? vItem;
-
   /// Valor do desconto aplicado ao item.
   String? vDesc;
 
-  /// Valor rateado do desconto.
-  String? vRatDesc;
+  /// GTIN (código de barras) do produto — `SEM GTIN` quando não houver.
+  String? cEAN;
+
+  /// GTIN da unidade tributável.
+  String? cEANTrib;
+
+  /// Código Especificador da Substituição Tributária (`CEST`).
+  String? cest;
+
+  /// Indicador de escala relevante (`indEscala`).
+  String? indEscala;
+
+  /// Código do benefício fiscal na UF (`cBenef`).
+  String? cBenef;
+
+  /// Unidade tributável.
+  String? uTrib;
+
+  /// Quantidade tributável.
+  String? qTrib;
+
+  /// Valor unitário de tributação.
+  String? vUnTrib;
+
+  /// Indica se o valor do item compõe o total da nota (`indTot`).
+  String? indTot;
+
+  /// Número do item no pedido de compra (`nItemPed`).
+  String? nItemPed;
 
   /// Construtor da classe `Prod`.
   ///
@@ -53,10 +74,7 @@ class Prod {
   /// - [qCom]: Quantidade comercializada.
   /// - [vUnCom]: Valor unitário.
   /// - [vProd]: Valor total do produto.
-  /// - [indRegra]: Indicador de regra.
-  /// - [vItem]: Valor do item.
   /// - [vDesc]: Valor do desconto.
-  /// - [vRatDesc]: Valor rateado do desconto.
   Prod({
     this.cProd,
     this.xProd,
@@ -66,10 +84,17 @@ class Prod {
     this.qCom,
     this.vUnCom,
     this.vProd,
-    this.indRegra,
-    this.vItem,
     this.vDesc,
-    this.vRatDesc,
+    this.cEAN,
+    this.cEANTrib,
+    this.cest,
+    this.indEscala,
+    this.cBenef,
+    this.uTrib,
+    this.qTrib,
+    this.vUnTrib,
+    this.indTot,
+    this.nItemPed,
   });
 
   /// Converte a instância atual em um mapa (`Map<String, dynamic>`).
@@ -93,10 +118,17 @@ class Prod {
       'qCom': qCom,
       'vUnCom': vUnCom,
       'vProd': vProd,
-      'indRegra': indRegra,
-      'vItem': vItem,
       'vDesc': vDesc,
-      'vRatDesc': vRatDesc,
+      'cEAN': cEAN,
+      'cEANTrib': cEANTrib,
+      'cest': cest,
+      'indEscala': indEscala,
+      'cBenef': cBenef,
+      'uTrib': uTrib,
+      'qTrib': qTrib,
+      'vUnTrib': vUnTrib,
+      'indTot': indTot,
+      'nItemPed': nItemPed,
     };
   }
 
@@ -118,16 +150,23 @@ class Prod {
     return Prod(
       cProd: map['cProd'],
       xProd: map['xProd'],
-      nCM: map['NCM'],
-      cFOP: map['CFOP'],
+      nCM: map['NCM'] ?? map['nCM'],
+      cFOP: map['CFOP'] ?? map['cFOP'],
       uCom: map['uCom'],
       qCom: map['qCom'],
       vUnCom: map['vUnCom'],
       vProd: map['vProd'],
-      indRegra: map['indRegra'],
-      vItem: map['vItem'] ?? map['vUnCom'] ?? '',
+      cEAN: map['cEAN'],
+      cEANTrib: map['cEANTrib'],
+      cest: map['CEST'] ?? map['cest'],
+      indEscala: map['indEscala'],
+      cBenef: map['cBenef'],
+      uTrib: map['uTrib'],
+      qTrib: map['qTrib'],
+      vUnTrib: map['vUnTrib'],
+      indTot: map['indTot'],
+      nItemPed: map['nItemPed'],
       vDesc: map['vDesc'] ?? '',
-      vRatDesc: map['vRatDesc'] ?? '',
     );
   }
 

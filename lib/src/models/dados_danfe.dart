@@ -1,26 +1,22 @@
 import 'dart:convert';
 
-import 'package:danfe/src/models/cobr.dart';
-import 'package:danfe/src/models/transp.dart';
-
 import 'dest.dart';
 import 'det.dart';
 import 'emit.dart';
 import 'ide.dart';
 import 'inf_adic.dart';
 import 'pgto.dart';
+import 'resp_tec.dart';
 import 'total.dart';
 
-/// A classe `DadosDanfe` representa os dados estruturados de um DANFE (Documento Auxiliar da Nota Fiscal Eletrônica).
+/// A classe `DadosDanfe` representa o conteúdo de `<infNFe>` — a parte do
+/// documento fiscal que é idêntica entre NF-e (modelo 55) e NFC-e (modelo 65).
 ///
-/// ### Responsabilidades:
-/// - Agrupar informações sobre a identificação da nota, emitente, destinatário, itens, totais, pagamentos e outros.
-/// - Suportar conversões para e de `Map<String, dynamic>` e JSON.
-///
-/// Essa classe centraliza todos os dados essenciais para a manipulação e formatação de um DANFE.
+/// O que é exclusivo de cada modelo não fica aqui, e sim nas subclasses de
+/// `Danfe`: `transp`/`cobr` em `DanfeNFe`, `infNFeSupl`/QR Code em `DanfeNFCe`.
 class DadosDanfe {
   /// Identificação da nota fiscal.
-  /// Instância da classe [Ide], que contém informações como UF, número de série, e data de emissão.
+  /// Instância da classe [Ide], que contém informações como UF, série e data de emissão.
   Ide? ide;
 
   /// Dados do emitente da nota.
@@ -32,20 +28,12 @@ class DadosDanfe {
   Dest? dest;
 
   /// Lista de itens (detalhes) presentes na nota.
-  /// Cada item é representado por uma instância da classe [Det], que inclui detalhes como descrição e valores dos produtos.
+  /// Cada item é representado por uma instância da classe [Det].
   List<Det>? det;
 
   /// Totais calculados da nota fiscal.
-  /// Representados por uma instância da classe [Total], que inclui informações como valor total e descontos.
+  /// Representados por uma instância da classe [Total].
   Total? total;
-
-  /// Informações sobre o transporte de itens
-  /// Instância da classe [Transp], que detalha as formas de transporte.
-  Transp? transp;
-
-  /// Informações sobre cobranca.
-  /// Instância da classe [Cobr], que detalha a cobranca da Nota fiscal.
-  Cobr? cobr;
 
   /// Informações sobre os pagamentos realizados.
   /// Instância da classe [Pgto], que detalha as formas de pagamento e valores envolvidos.
@@ -55,17 +43,14 @@ class DadosDanfe {
   /// Instância da classe [InfAdic], contendo observações fiscais e complementares.
   InfAdic? infAdic;
 
-  /// Chave de acesso da nota fiscal.
+  /// Chave de acesso da nota fiscal (44 dígitos, sem o prefixo `NFe`).
   String? chaveNota;
 
   /// Versão do layout do documento.
   String? sVersao;
 
-  /// Versão dos dados de entrada.
-  String? sVersaoDadosEnt;
-
-  /// Versão do software básico utilizado.
-  String? sVersaoSB;
+  /// Responsável técnico pela emissão (`infRespTec`).
+  InfRespTec? infRespTec;
 
   /// Construtor da classe `DadosDanfe`.
   ///
@@ -79,8 +64,7 @@ class DadosDanfe {
   /// - [infAdic]: Informações adicionais.
   /// - [chaveNota]: Chave de acesso da nota fiscal.
   /// - [sVersao]: Versão do layout.
-  /// - [sVersaoDadosEnt]: Versão dos dados de entrada.
-  /// - [sVersaoSB]: Versão do software básico.
+  /// - [infRespTec]: Responsável técnico pela emissão.
   DadosDanfe({
     this.ide,
     this.emit,
@@ -91,16 +75,10 @@ class DadosDanfe {
     this.infAdic,
     this.chaveNota,
     this.sVersao,
-    this.sVersaoDadosEnt,
-    this.sVersaoSB,
-    this.transp,
-    this.cobr,
+    this.infRespTec,
   });
 
   /// Converte a instância atual em um mapa (`Map<String, dynamic>`).
-  ///
-  /// ### Retorno:
-  /// - Um mapa com as propriedades da classe e seus respectivos valores.
   Map<String, dynamic> toMap() {
     return {
       'ide': ide?.toMap(),
@@ -112,24 +90,21 @@ class DadosDanfe {
       'infAdic': infAdic?.toMap(),
       'chaveNota': chaveNota,
       'sVersao': sVersao,
-      'sVersaoDadosEnt': sVersaoDadosEnt,
-      'sVersaoSB': sVersaoSB,
-      'transp': transp?.toMap(),
-      'cobr': cobr?.toMap(),
+      'infRespTec': infRespTec?.toMap(),
     };
   }
 
-  /// Cria uma instância de `DadosDanfe` a partir de um mapa (`Map<String, dynamic>`).
+  /// Cria uma instância de `DadosDanfe` a partir do mapa de `<infNFe>`.
   ///
-  /// ### Parâmetros:
-  /// - [map]: Um mapa contendo as chaves e valores correspondentes às propriedades da classe.
-  ///
-  /// ### Retorno:
-  /// - Uma instância de `DadosDanfe` populada com os valores fornecidos no mapa.
+  /// O `xml2json` no formato Parker colapsa listas de um único elemento em um
+  /// mapa, daí o tratamento defensivo em `det`.
   factory DadosDanfe.fromMap(Map<String, dynamic> map) {
-    final List<Det> det = (map['det'] is List)
-        ? List<Det>.from(map['det'].map((x) => Det.fromMap(x)))
-        : [Det.fromMap(map['det'])];
+    final detRaw = map['det'];
+    final List<Det>? det = detRaw is List
+        ? List<Det>.from(detRaw.map((x) => Det.fromMap(x)))
+        : detRaw != null
+        ? [Det.fromMap(detRaw)]
+        : null;
 
     return DadosDanfe(
       ide: map['ide'] != null ? Ide.fromMap(map['ide']) : null,
@@ -137,36 +112,31 @@ class DadosDanfe {
       dest: (map['dest'] != null && map['dest'] != '')
           ? Dest.fromMap(map['dest'])
           : null,
-      det: map['det'] != null ? det : null,
+      det: det,
       total: map['total'] != null ? Total.fromMap(map['total']) : null,
-      transp: map['transp'] != null ? Transp.fromMap(map['transp']) : null,
-      pgto: (map['pgto'] ?? map['pag']) != null
-          ? Pgto.fromMap(map['pgto'] ?? map['pag'])
+      pgto: (map['pag'] ?? map['pgto']) != null
+          ? Pgto.fromMap(map['pag'] ?? map['pgto'])
           : null,
       infAdic: map['infAdic'] != null ? InfAdic.fromMap(map['infAdic']) : null,
-      chaveNota: (map['_Id'] as String)
-          .replaceAll('CFe', '')
-          .replaceAll('NFe', ''),
-      sVersao: map['_versao'],
-      sVersaoDadosEnt: map['_versaoDadosEnt'],
-      sVersaoSB: map['_versaoSB'],
-      cobr: map['cobr'] != null ? Cobr.fromMap(map['cobr']) : null,
+      chaveNota: _extrairChave(map),
+      sVersao: map['_versao'] ?? map['sVersao'],
+      infRespTec: map['infRespTec'] is Map<String, dynamic>
+          ? InfRespTec.fromMap(map['infRespTec'])
+          : null,
     );
   }
 
+  /// Extrai a chave de acesso do atributo `Id` de `<infNFe>`, removendo o
+  /// prefixo `NFe`. Cai em `chaveNota` para permitir o round-trip via [fromJson].
+  static String? _extrairChave(Map<String, dynamic> map) {
+    final id = map['_Id'] ?? map['chaveNota'];
+    return id is String ? id.replaceAll('NFe', '') : null;
+  }
+
   /// Converte a instância atual em uma string JSON.
-  ///
-  /// ### Retorno:
-  /// - Uma string JSON representando os dados da instância.
   String toJson() => json.encode(toMap());
 
   /// Cria uma instância de `DadosDanfe` a partir de uma string JSON.
-  ///
-  /// ### Parâmetros:
-  /// - [source]: Uma string JSON contendo os dados para a classe.
-  ///
-  /// ### Retorno:
-  /// - Uma instância de `DadosDanfe` populada com os valores fornecidos no JSON.
   factory DadosDanfe.fromJson(String source) =>
       DadosDanfe.fromMap(json.decode(source));
 }

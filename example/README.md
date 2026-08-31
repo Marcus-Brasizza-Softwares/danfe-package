@@ -2,11 +2,11 @@
 
 
 
-Este package tem como finalidade ajudar no desenvolvimento e manipulação das Danfes, seja NFC-E ou SAT, normalizando o objeto e também criando um buffer de uma impressão padrão para ser enviada para qualquer dispositivo que imprima ESC/POS
+Este package tem como finalidade ajudar no desenvolvimento e manipulação das Danfes, seja NF-e (modelo 55) ou NFC-e (modelo 65), normalizando o objeto e também criando um buffer de uma impressão padrão para ser enviada para qualquer dispositivo que imprima ESC/POS
 
 
 ## O que este package faz!
-- [x] Carrega um xml em string e verifica se é SAT ou NFC-E e normaliza um objeto com todas as informações em propriedades genéricas
+- [x] Carrega um xml em string, identifica o modelo (55 = NF-e, 65 = NFC-e) e normaliza um objeto com todas as informações em propriedades genéricas, incluindo os grupos de IBS/CBS e Imposto Seletivo da reforma tributária
 - [x] Cria um buffer em List<int> com um layout especificado por mim, porém no seu projeto você mesmo pode criar o layout que achar necessário (vide pasta EXEMPLO)
 
 

@@ -1,4 +1,116 @@
 
+## 3.1.0
+
+Suporte aos grupos da reforma tributária (NT 2025.002) e ao restante do
+leiaute 4.00 que ainda era descartado. Tudo aditivo sobre a 3.0.0.
+
+### Reforma tributária — IBS, CBS e Imposto Seletivo
+* **Por item** (`Det.imposto`): novos `IbsCbs` (grupo `IBSCBS`, com `CST`,
+  `cClassTrib` e `gIBSCBS`) e `ImpostoSeletivo` (grupo `IS`).
+  `gIBSUF`, `gIBSMun` e `gCBS` compartilham a classe `TributoIbsCbs`,
+  parametrizada pelo sufixo da tag — inclui alíquota, `gRed`
+  (`ReducaoAliquota`), valor, diferimento, devolução e crédito presumido.
+* **Nos totais** (`Total`): `ibsCbs` (grupo `IBSCBSTot`, com `TotalIbs`,
+  `TotalTributoIbsCbs` e `TotalMonofasico`), `valorIs` (`ISTot/vIS`) e
+  `valorTotalNota` (`vNFTot`).
+* **`Det.vItem`** — Grupo VB, filho direto de `<det>`. Não confundir com o
+  `Prod.vItem` do SAT removido na 3.0.0, que ficava em `det/prod/vItem`.
+* Os totais de IBS, CBS e Imposto Seletivo passam a ser impressos no rodapé do
+  cupom, nos dois renderizadores, quando têm valor.
+* Ficam de fora, documentados como ponto de extensão em `IbsCbs`:
+  `gTribRegular`, `gTribCompraGov`, `gIBSCBSMono`, `gTransfCred` e
+  `gALCZFMCBS`.
+
+### Regime antigo por item
+Durante a transição os dois regimes convivem na mesma nota, então o grupo
+`<imposto>` passa a ser lido por inteiro:
+
+* `Icms`, `Pis` e `Cofins` achatam a variante do CST: `grupo` guarda o nome do
+  filho no XML (`ICMS00`, `ICMS40`, `ICMSSN102`, `PISAliq`, `PISNT`…) e os
+  demais campos são a união dos valores possíveis. `CST` e `CSOSN` caem no
+  mesmo campo `cst`.
+
+### Demais campos do leiaute 4.00
+* `Ide`: `natOp`, `tpNF`, `idDest`, `finNFe`, `indFinal`, `indPres`,
+  `indIntermed`, `verProc`.
+* `Emit.crt` (`CRT`).
+* `Prod`: `cEAN`, `cEANTrib`, `cest`, `indEscala`, `cBenef`, `uTrib`, `qTrib`,
+  `vUnTrib`, `indTot`, `nItemPed`.
+* `Total`: `valorFcp`, `valorFcpSt`, `valorFcpStRetido`,
+  `valorImpostoImportacao`, `valorIpiDevolvido`.
+* `CardPagamento` (grupo `card`) volta e agora é de fato preenchida, via
+  `MP.card` — na 3.0.0 foi removida por ser código morto, mas o dado existe nos
+  documentos reais.
+* Nova `InfRespTec` (grupo `infRespTec`), em `DadosDanfe.infRespTec`.
+
+### Correções
+* `InfAdic.obsFisco` passa de `ObsFisco?` para `List<ObsFisco>?`. O grupo é
+  repetível no leiaute e, com mais de uma ocorrência, o parsing quebrava.
+  **Quebra de tipo** num campo quase sempre nulo.
+* Novo `DanfeUtils.temValor`, usado para decidir se uma linha de total é
+  impressa. Substitui a comparação com a string `'0.00'`, que não cobria
+  `'0'`, `'0.0000'` nem vazio.
+
+## 3.0.0
+
+**Versão com quebras de compatibilidade.** O SAT (CFe) deixou de ser emitido e
+seu suporte foi removido; o parser passou a separar NF-e e NFC-e por modelo.
+
+### Removido — SAT (CFe)
+* `TipoDocumento.CFe`, `Danfe.fromMapSat`, `Danfe.extractQrCode` e `Danfe.findTypeByMap`.
+  Um XML `<CFe>` agora retorna `null` em `DanfeParser.readFromString`.
+* Campos que só o CFe preenchia: `Ide.nserieSAT`, `Ide.signAC`,
+  `Ide.assinaturaQRCODE`, `Ide.numeroCaixa`, `Ide.dEmi`, `Ide.hEmi`,
+  `Total.valorLei12741`, `Prod.indRegra`, `Prod.vItem`, `Prod.vRatDesc`,
+  `Emit.cRegTrib`, `Emit.indRatISSQN`, `DadosDanfe.sVersaoDadosEnt` e
+  `DadosDanfe.sVersaoSB`.
+* `DetPag` e `CardPagamento`: eram código morto — nunca chegavam a ser
+  instanciados, já que `Pgto` funilava os dois formatos por `MP`.
+* Quem ainda precisa emitir SAT deve fixar a versão `2.x`.
+
+### Separação NF-e (55) × NFC-e (65)
+* `Danfe` virou uma classe `sealed` com duas subclasses: `DanfeNFe` (modelo 55,
+  com `transp` e `cobr`) e `DanfeNFCe` (modelo 65, com `infNFeSupl` e
+  `qrcodePrinter`). Um `switch` sobre `Danfe` é exaustivo em tempo de compilação.
+* `transp` e `cobr` saíram de `DadosDanfe` e passaram para `DanfeNFe`.
+* O parsing foi dividido em `NfeParser` e `NfceParser`, resolvidos por
+  `<ide><mod>` através de um registry. Novo ponto de extensão:
+  `DanfeParser.registrar(DocumentoParser)` permite atender a um modelo novo sem
+  alterar o pacote.
+* Modelo desconhecido agora retorna `null`. Antes, qualquer `mod` diferente de
+  `'55'` — inclusive ausente ou inválido — era silenciosamente tratado como NFC-e.
+
+### Reforma tributária (IBS/CBS)
+* Novo `Det.imposto` (classe `Imposto`), que lê o grupo `<imposto>` de cada item
+  — antes o nó era descartado por inteiro. É o ponto de extensão documentado
+  para os grupos IBS/CBS da NT 2025.002.
+
+### Correções
+* `Total.toMap()` serializava 11 dos 17 campos, então `toJson()` perdia dados e
+  `Total.fromJson(total.toJson())` não fazia round-trip. Agora serializa todos.
+* `Total.valorSt` lia a tag `vSt`, mas o schema define `vST` — o valor era
+  sempre `'0.00'`.
+* A data de emissão era convertida para UTC: uma nota emitida às 10:15 (-03:00)
+  era impressa como 13:15. Agora o horário declarado no XML é preservado.
+* `normativeJsonDanfe` emitia um bloco de QR Code vazio para NF-e, ao contrário
+  de `bufferDanfe`, que já o suprimia.
+* `bufferDanfe` estourava quando `pgto.formas` vinha nulo.
+* `bufferDanfe(null)` estourava em `DanfeUtils.formatDate`/`formatNumber`/
+  `formatMoneyMilhar`, que lançavam `FormatException` para string vazia.
+  Os formatadores agora devolvem vazio/zero, como o `?? ''` das impressoras
+  já pressupunha.
+* `ObsFisco.sXCampo` lia `sXCampo`, mas atributos chegam prefixados com `_`
+  (`_xCampo`) — o campo nunca era preenchido.
+* Removido um `print` de depuração em `Cobr.fromMap`.
+
+### Renomeações
+* `Total.valotTotalTributos` → `Total.valorTotalTributos` (corrige o erro de digitação).
+* `Total.valorTotalIcms` e `Total.valorIcms` eram o mesmo dado (`ICMSTot/vICMS`);
+  restou `valorIcms`.
+* `MP.cMP`/`MP.vMP` → `MP.tPag`/`MP.vPag`, acompanhando o vocabulário da NF-e.
+* `IDanfePrinter.normativeJsonDanfe` passou a declarar o parâmetro `customFont`,
+  que a implementação já aceitava.
+
 ## 2.0.2
 * Melhoria na fonte customizável
 * Separação do core de geração do JSON para uma classe separada

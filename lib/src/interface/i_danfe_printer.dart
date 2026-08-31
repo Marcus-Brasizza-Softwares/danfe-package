@@ -27,8 +27,13 @@ abstract class IDanfePrinter {
   /// - [danfe]: Objeto `Danfe` contendo os dados do documento fiscal.
   /// - [mostrarMoeda] (opcional): Um `bool` que define se o símbolo da moeda será exibido.
   ///   O valor padrão é `true`.
+  /// - [customFont] (opcional): Nome da fonte usada na renderização.
   ///
   /// ### Retorno:
   /// - Uma `String` contendo o JSON gerado a partir dos dados do DANFE.
-  String normativeJsonDanfe(Danfe? danfe, {bool mostrarMoeda = true});
+  String normativeJsonDanfe(
+    Danfe? danfe, {
+    bool mostrarMoeda = true,
+    String customFont = 'RobotoMonoRegular',
+  });
 }

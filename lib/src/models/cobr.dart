@@ -30,7 +30,6 @@ class Cobr {
     if (map['dup'] != null && map['dup'] is Map) {
       map['dup'] = [map['dup']];
     }
-    print(map);
     return Cobr(
       fat: map['fat'] != null ? Fat.fromMap(map['fat']) : null,
       dup: (map['dup'] != null && map['dup'].isNotEmpty)

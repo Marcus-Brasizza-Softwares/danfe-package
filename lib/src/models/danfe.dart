@@ -1,20 +1,28 @@
 import 'dart:convert';
 
+import 'cobr.dart';
 import 'dados_danfe.dart';
 import 'inf_supl.dart';
 import 'prot_nfe.dart';
+import 'transp.dart';
 
-/// Enum que representa os tipos de documentos fiscais.
-// ignore: constant_identifier_names
-enum TipoDocumento { CFe, NFe, NFCe }
+/// Enum que representa os modelos de documento fiscal suportados.
+///
+/// O SAT (`CFe`, modelo 59) deixou de ser emitido e não é mais suportado
+/// desde a versão 3.0.0.
+enum TipoDocumento {
+  /// Nota Fiscal Eletrônica — modelo 55.
+  NFe,
+
+  /// Nota Fiscal de Consumidor Eletrônica — modelo 65.
+  NFCe,
+}
 
 /// Extensão para facilitar a conversão entre `TipoDocumento` e `String`.
 extension TipoDocumentoExtension on TipoDocumento {
   /// Obtém o valor em string correspondente ao tipo de documento.
   String get value {
     switch (this) {
-      case TipoDocumento.CFe:
-        return 'CFe';
       case TipoDocumento.NFe:
         return 'NFe';
       case TipoDocumento.NFCe:
@@ -22,11 +30,19 @@ extension TipoDocumentoExtension on TipoDocumento {
     }
   }
 
+  /// Modelo do documento fiscal (`55` ou `65`).
+  String get modelo {
+    switch (this) {
+      case TipoDocumento.NFe:
+        return '55';
+      case TipoDocumento.NFCe:
+        return '65';
+    }
+  }
+
   /// Converte uma string em uma enumeração `TipoDocumento`.
   static TipoDocumento fromString(String value) {
     switch (value) {
-      case 'CFe':
-        return TipoDocumento.CFe;
       case 'NFe':
         return TipoDocumento.NFe;
       case 'NFCe':
@@ -37,150 +53,130 @@ extension TipoDocumentoExtension on TipoDocumento {
   }
 }
 
-/// A classe `Danfe` representa os dados estruturados de um DANFE (Documento Auxiliar da Nota Fiscal Eletrônica).
+/// A classe `Danfe` representa os dados estruturados de um DANFE
+/// (Documento Auxiliar da Nota Fiscal Eletrônica).
 ///
-/// ### Responsabilidades:
-/// - Centralizar informações do DANFE, incluindo dados principais, tipo, informações suplementares,
-///   protocolo de autorização e QR Code.
-/// - Fornecer métodos de conversão entre mapas (`Map<String, dynamic>`) e JSON.
+/// É uma classe `sealed`: existe exatamente uma subclasse por modelo de
+/// documento fiscal — [DanfeNFe] (modelo 55) e [DanfeNFCe] (modelo 65).
+/// Isso faz com que um `switch` sobre um `Danfe` seja exaustivo em tempo de
+/// compilação, e mantém em cada subclasse apenas os campos que aquele modelo
+/// de fato possui.
 ///
-/// Essa classe suporta dois tipos principais de documentos fiscais:
-/// - `CFe`: Cupom Fiscal Eletrônico.
-/// - `NFe`: Nota Fiscal Eletrônica.
-class Danfe {
+/// ### Exemplo:
+/// ```dart
+/// final danfe = DanfeParser.readFromString(xml);
+/// switch (danfe) {
+///   case DanfeNFCe d:
+///     print(d.qrcodePrinter); // QR Code só existe na NFC-e
+///   case DanfeNFe d:
+///     print(d.transp?.transporta?.xNome); // transporte só na NF-e
+///   case null:
+///     print('XML não reconhecido');
+/// }
+/// ```
+///
+/// Instâncias não são criadas diretamente a partir do XML: use
+/// `DanfeParser.readFromString`.
+sealed class Danfe {
   /// Dados principais do DANFE.
   /// Instância da classe [DadosDanfe], que centraliza as informações do documento fiscal.
   DadosDanfe? dados;
 
-  /// Tipo do documento fiscal (ex.: `CFe` ou `NFe`).
-  TipoDocumento tipo;
-
-  /// Informações suplementares da Nota Fiscal.
-  /// Instância da classe [InfNFeSupl], contendo informações adicionais, como QR Code e URL de consulta.
-  InfNFeSupl? infNFeSupl;
-
   /// Protocolo de autorização da Nota Fiscal.
-  /// Representado por uma instância da classe [ProtNFe], que inclui detalhes como número do protocolo e data de recebimento.
+  /// Presente apenas quando o XML é um `nfeProc` (nota já autorizada).
   ProtNFe? protNFe;
 
-  /// QR Code preparado para impressão.
-  /// Representa o código de barras bidimensional gerado para a nota fiscal.
-  String? qrcodePrinter;
+  Danfe({this.dados, this.protNFe});
 
-  /// Construtor da classe `Danfe`.
-  ///
-  /// ### Parâmetros:
-  /// - [dados]: Dados principais do DANFE.
-  /// - [tipo]: Tipo do documento fiscal (obrigatório).
-  /// - [infNFeSupl]: Informações suplementares da Nota Fiscal.
-  /// - [protNFe]: Protocolo de autorização da Nota Fiscal.
-  Danfe({this.dados, required this.tipo, this.infNFeSupl, this.protNFe});
+  /// Modelo do documento fiscal: `55` (NF-e) ou `65` (NFC-e).
+  String get modelo;
+
+  /// Tipo do documento fiscal.
+  TipoDocumento get tipo;
+
+  /// Descrição usada no cabeçalho impresso (ex.: `NFe`, `NFC-E`).
+  String get descricao;
 
   /// Converte a instância atual em um mapa (`Map<String, dynamic>`).
-  ///
-  /// ### Retorno:
-  /// - Um mapa contendo os dados principais do DANFE.
-  ///
-  /// ### Exemplo:
-  /// ```dart
-  /// Danfe danfe = Danfe(tipo: TipoDocumento.NFe, dados: DadosDanfe(...));
-  /// Map<String, dynamic> mapa = danfe.toMap();
-  /// print(mapa); // Saída: {dados: {...}}
-  /// ```
   Map<String, dynamic> toMap() {
     return {
       'dados': dados?.toMap(),
       'tipo': tipo.value,
-      'infNFeSupl': infNFeSupl?.toMap(),
+      'modelo': modelo,
       'protNFe': protNFe?.toMap(),
-      'qrcodePrinter': qrcodePrinter,
     };
   }
+
+  /// Converte a instância atual em uma string JSON.
+  String toJson() => json.encode(toMap());
 
   /// Método utilitário para obter um valor de forma segura de um mapa.
   static T? safeGet<T>(Map<String, dynamic> map, String key) {
     return map.containsKey(key) && map[key] != null ? map[key] as T : null;
   }
+}
 
-  static String? extractQrCode(String? qrCode) {
-    if (qrCode == null || qrCode.length < 100) {
-      return null;
-    }
-    return qrCode.substring(100);
+/// DANFE do modelo **55 — Nota Fiscal Eletrônica (NF-e)**.
+///
+/// Diferente da NFC-e, não possui QR Code (`infNFeSupl`), e é o modelo que
+/// carrega os grupos de transporte (`transp`) e cobrança (`cobr`).
+final class DanfeNFe extends Danfe {
+  /// Informações sobre o transporte dos itens (`<transp>`).
+  Transp? transp;
+
+  /// Informações sobre a cobrança da nota — fatura e duplicatas (`<cobr>`).
+  Cobr? cobr;
+
+  DanfeNFe({super.dados, super.protNFe, this.transp, this.cobr});
+
+  @override
+  String get modelo => '55';
+
+  @override
+  TipoDocumento get tipo => TipoDocumento.NFe;
+
+  @override
+  String get descricao => 'NFe';
+
+  @override
+  Map<String, dynamic> toMap() {
+    return {...super.toMap(), 'transp': transp?.toMap(), 'cobr': cobr?.toMap()};
   }
+}
 
-  /// Cria uma instância de `Danfe` a partir de um mapa no formato SAT.
-  ///
-  /// ### Parâmetros:
-  /// - [map]: Um mapa contendo os dados no formato SAT (Cupom Fiscal Eletrônico).
-  ///
-  /// ### Retorno:
-  /// - Uma instância de `Danfe` com os valores mapeados.
-  ///
-  /// ### Detalhes:
-  /// - O QR Code é extraído do campo `assinaturaQRCODE` do campo `ide` e ajustado para impressão.
-  factory Danfe.fromMapSat(Map<String, dynamic> map) {
-    final dados = safeGet<Map<String, dynamic>>(map, 'infCFe');
-    return Danfe(
-      dados: dados != null ? DadosDanfe.fromMap(dados) : null,
-      tipo: TipoDocumento.CFe,
-    )..qrcodePrinter = extractQrCode(dados?['ide']?['assinaturaQRCODE']);
-  }
+/// DANFE do modelo **65 — Nota Fiscal de Consumidor Eletrônica (NFC-e)**.
+///
+/// Sempre acompanha o grupo `infNFeSupl`, de onde saem o QR Code e a URL de
+/// consulta impressos no cupom.
+final class DanfeNFCe extends Danfe {
+  /// Informações suplementares da Nota Fiscal (QR Code e URL de consulta).
+  InfNFeSupl? infNFeSupl;
 
-  /// Cria uma instância de `Danfe` a partir de um mapa no formato NFC-e.
-  ///
-  /// ### Parâmetros:
-  /// - [map]: Um mapa contendo os dados no formato NFC-e (Nota Fiscal Eletrônica do Consumidor).
-  ///
-  /// ### Retorno:
-  /// - Uma instância de `Danfe` com os valores mapeados.
-  ///
-  /// ### Detalhes:
-  /// - O QR Code é extraído do campo `infNFeSupl` e ajustado para impressão.
-  /// - Inclui informações suplementares (`infNFeSupl`) e protocolo de autorização (`protNFe`).
-  factory Danfe.fromMapNFce(Map<String, dynamic> map) {
-    final parseMap = safeGet<Map<String, dynamic>>(map, 'NFe') ?? map;
-    return Danfe(
-        dados: safeGet<Map<String, dynamic>>(parseMap, 'infNFe') != null
-            ? DadosDanfe.fromMap(parseMap['infNFe'])
-            : null,
-        tipo: findTypeByMap(parseMap) ?? TipoDocumento.NFCe,
-        protNFe: safeGet<Map<String, dynamic>>(map, 'protNFe') != null
-            ? ProtNFe.fromMap(map['protNFe'])
-            : null,
-        infNFeSupl:
-            safeGet<Map<String, dynamic>>(parseMap, 'infNFeSupl') != null
-            ? InfNFeSupl.fromMap(parseMap['infNFeSupl'])
-            : null,
-      )
-      ..qrcodePrinter = safeGet<Map<String, dynamic>>(
-        parseMap,
-        'infNFeSupl',
-      )?['qrCode'];
-  }
+  /// QR Code preparado para impressão.
+  String? qrcodePrinter;
 
-  /// Converte a instância atual em uma string JSON.
-  ///
-  /// ### Retorno:
-  /// - Uma string JSON representando os dados principais do DANFE.
-  ///
-  /// ### Exemplo:
-  /// ```dart
-  /// Danfe danfe = Danfe(tipo: TipoDocumento.CFe, dados: DadosDanfe(...));
-  /// String json = danfe.toJson();
-  /// print(json); // Saída: {"dados":{...}}
-  /// ```
-  String toJson() => json.encode(toMap());
+  DanfeNFCe({
+    super.dados,
+    super.protNFe,
+    this.infNFeSupl,
+    this.qrcodePrinter,
+  });
 
-  static TipoDocumento? findTypeByMap(Map<String, dynamic> map) {
-    if (map.containsKey('CFe')) {
-      return TipoDocumento.CFe;
-    } else if (map.containsKey('infNFe')) {
-      if (map['infNFe']?['ide']?['mod'] == '55') {
-        return TipoDocumento.NFe;
-      }
-      return TipoDocumento.NFCe;
-    }
-    return TipoDocumento.NFe;
+  @override
+  String get modelo => '65';
+
+  @override
+  TipoDocumento get tipo => TipoDocumento.NFCe;
+
+  @override
+  String get descricao => 'NFC-E';
+
+  @override
+  Map<String, dynamic> toMap() {
+    return {
+      ...super.toMap(),
+      'infNFeSupl': infNFeSupl?.toMap(),
+      'qrcodePrinter': qrcodePrinter,
+    };
   }
 }

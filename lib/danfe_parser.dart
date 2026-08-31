@@ -2,76 +2,130 @@ import 'dart:convert';
 
 import 'package:xml2json/xml2json.dart';
 
-import 'danfe.dart';
+import 'src/models/danfe.dart';
+import 'src/parser/documento_parser.dart';
+import 'src/parser/nfce_parser.dart';
+import 'src/parser/nfe_parser.dart';
 
-/// A classe `DanfeParser` fornece métodos utilitários para processar documentos XML
-/// associados a DANFEs (Documento Auxiliar da Nota Fiscal Eletrônica) em objetos `Danfe`.
+/// A classe `DanfeParser` converte o XML de um documento fiscal eletrônico em
+/// um objeto [Danfe].
 ///
-/// Essa classe utiliza a biblioteca `xml2json` para transformar o XML em JSON
-/// e, em seguida, processar o JSON para criar instâncias de `Danfe`.
+/// O XML é normalizado com a biblioteca `xml2json` (formato Parker) e, em
+/// seguida, entregue ao [DocumentoParser] correspondente ao modelo declarado
+/// em `<ide><mod>`:
 ///
-/// A classe é implementada com um construtor privado para garantir que não possa
-/// ser instanciada diretamente, sendo usada apenas para acesso aos métodos estáticos.
+/// | Modelo | Parser        | Resultado   |
+/// |--------|---------------|-------------|
+/// | `55`   | `NfeParser`   | `DanfeNFe`  |
+/// | `65`   | `NfceParser`  | `DanfeNFCe` |
+///
+/// Modelos não registrados retornam `null` — o parser não tenta adivinhar.
+///
+/// > O SAT (`CFe`, modelo 59) deixou de ser emitido e não é mais suportado
+/// > desde a versão 3.0.0: um XML `<CFe>` retorna `null`.
+///
+/// A classe é implementada com um construtor privado para garantir que não
+/// possa ser instanciada, sendo usada apenas para acesso aos métodos estáticos.
 class DanfeParser {
   /// Construtor privado para impedir a instanciação da classe.
-  ///
-  /// Essa abordagem é comum em classes utilitárias que fornecem apenas métodos estáticos.
   DanfeParser._();
 
-  /// Método privado para analisar e converter um documento XML em um objeto `Danfe`.
-  ///
-  /// Este método realiza as seguintes etapas:
-  /// 1. Usa a biblioteca `xml2json` para transformar o XML fornecido em um JSON no formato Parker.
-  /// 2. Decodifica o JSON gerado em um `Map<String, dynamic>`.
-  /// 3. Identifica a estrutura principal do documento (ex.: `CFe`, `nfeProc`, ou `NFe`)
-  ///    e a mapeia para o modelo `Danfe` correspondente usando métodos específicos da classe `Danfe`.
-  ///
-  /// ### Parâmetros:
-  /// - [xml]: Uma `String` contendo o documento XML que será analisado.
-  ///
-  /// ### Retorno:
-  /// - Um objeto `Danfe` se o XML for compatível e puder ser convertido.
-  /// - `null` se nenhuma estrutura reconhecida for encontrada no XML.
-  ///
-  /// ### Erros:
-  /// - Pode lançar exceções relacionadas a parsing XML ou decodificação JSON
-  ///   se o XML fornecido for inválido ou malformado.
-  static Danfe? _parseDanfe(String xml) {
-    final myTransformer = Xml2Json();
-    myTransformer.parse(
-      xml,
-    ); // Transforma o XML em uma representação manipulável.
-    String json = myTransformer
-        .toParkerWithAttrs(); // Converte o XML para JSON no formato Parker.
-    Map<String, dynamic> converter = jsonDecode(
-      json,
-    ); // Decodifica o JSON em um mapa.
+  /// Parsers registrados, indexados pelo modelo do documento fiscal.
+  static final Map<String, DocumentoParser> _parsers = {
+    '55': NfeParser(),
+    '65': NfceParser(),
+  };
 
-    // Verifica as possíveis estruturas do XML e as converte em `Danfe`.
-    if (converter.containsKey('CFe')) {
-      return Danfe.fromMapSat(converter['CFe']);
-    } else if (converter.containsKey('nfeProc')) {
-      return Danfe.fromMapNFce(converter['nfeProc']);
-    } else if (converter.containsKey('NFe')) {
-      return Danfe.fromMapNFce(converter['NFe']);
-    }
-
-    // Retorna `null` se nenhuma estrutura conhecida for encontrada.
-    return null;
+  /// Registra (ou substitui) o parser de um modelo de documento fiscal.
+  ///
+  /// É o ponto de extensão do pacote: permite atender a um modelo novo — ou
+  /// trocar o comportamento de um existente — sem alterar [readFromString].
+  ///
+  /// ```dart
+  /// DanfeParser.registrar(MeuParserCustomizado());
+  /// ```
+  static void registrar(DocumentoParser parser) {
+    _parsers[parser.modelo] = parser;
   }
 
-  /// Método público para converter um XML em um objeto `Danfe`.
+  /// Remove o parser registrado para [modelo].
   ///
-  /// Esse método serve como uma interface de alto nível para `_parseDanfe`,
-  /// encapsulando a lógica de parsing e retornando o objeto resultante.
+  /// Retorna o parser removido, ou `null` se não havia nenhum registrado.
+  static DocumentoParser? removerRegistro(String modelo) =>
+      _parsers.remove(modelo);
+
+  /// Modelos de documento fiscal atualmente suportados.
+  static Iterable<String> get modelosSuportados => _parsers.keys;
+
+  /// Converte um XML de documento fiscal em um objeto [Danfe].
   ///
   /// ### Parâmetros:
   /// - [xml]: Uma `String` contendo o documento XML que será processado.
   ///
   /// ### Retorno:
-  /// - Um objeto `Danfe` se o XML for válido e puder ser convertido.
-  /// - `null` se o XML não contiver uma estrutura reconhecida ou for malformado.
+  /// - [DanfeNFe] para o modelo `55`, [DanfeNFCe] para o modelo `65`.
+  /// - `null` se o XML não tiver uma raiz reconhecida (`nfeProc`/`NFe`) ou se
+  ///   o modelo declarado não tiver parser registrado.
+  ///
+  /// ### Erros:
+  /// - Pode lançar exceções de parsing XML ou de decodificação JSON se o XML
+  ///   fornecido for inválido ou malformado.
   static Danfe? readFromString(String xml) {
-    return _parseDanfe(xml);
+    final ctx = _contextoFromXml(xml);
+    if (ctx == null) {
+      return null;
+    }
+
+    final modelo = ctx.modelo;
+    if (modelo == null) {
+      return null;
+    }
+
+    return _parsers[modelo]?.parse(ctx);
+  }
+
+  /// Normaliza o XML e localiza `infNFe`, `infNFeSupl` e `protNFe`.
+  ///
+  /// Aceita as duas raízes possíveis: `<nfeProc>` (nota autorizada, com
+  /// protocolo) e `<NFe>` (nota avulsa).
+  static DanfeXmlContext? _contextoFromXml(String xml) {
+    final transformer = Xml2Json();
+    transformer.parse(xml);
+
+    // O formato Parker com atributos prefixa atributos XML com `_`
+    // (ex.: `Id` vira `_Id`), convenção usada por todos os modelos.
+    final Map<String, dynamic> raiz = jsonDecode(
+      transformer.toParkerWithAttrs(),
+    );
+
+    final nfeProc = raiz['nfeProc'];
+    final Map<String, dynamic>? envelope = nfeProc is Map<String, dynamic>
+        ? nfeProc
+        : raiz.containsKey('NFe')
+        ? raiz
+        : null;
+
+    if (envelope == null) {
+      return null;
+    }
+
+    final nfe = envelope['NFe'];
+    final Map<String, dynamic> conteudo = nfe is Map<String, dynamic>
+        ? nfe
+        : envelope;
+
+    final infNFe = conteudo['infNFe'];
+    if (infNFe is! Map<String, dynamic>) {
+      return null;
+    }
+
+    final infNFeSupl = conteudo['infNFeSupl'];
+    final protNFe = envelope['protNFe'];
+
+    return DanfeXmlContext(
+      infNFe: infNFe,
+      infNFeSupl: infNFeSupl is Map<String, dynamic> ? infNFeSupl : null,
+      protNFe: protNFe is Map<String, dynamic> ? protNFe : null,
+    );
   }
 }

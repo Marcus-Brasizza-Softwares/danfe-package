@@ -65,7 +65,7 @@ class HomeScreen extends StatelessWidget {
                   },
                   icon: const Icon(Icons.description, size: 28),
                   label: const Text(
-                    'NFC-E / SAT / DANFE',
+                    'NFC-E / NF-e / DANFE',
                     style: TextStyle(fontSize: 18),
                   ),
                   style: ElevatedButton.styleFrom(

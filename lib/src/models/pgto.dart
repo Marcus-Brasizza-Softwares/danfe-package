@@ -29,12 +29,15 @@ class Pgto {
   ///
   /// ### Exemplo:
   /// ```dart
-  /// Pgto pgto = Pgto(formas: [MP(cMP: '01', vMP: '100.00')], vTroco: '0.00');
+  /// Pgto pgto = Pgto(formas: [MP(tPag: '01', vPag: '100.00')], vTroco: '0.00');
   /// Map<String, dynamic> mapa = pgto.toMap();
-  /// print(mapa); // Saída: {MP: [{cMP: 01, vMP: 100.00}], vTroco: 0.00}
+  /// print(mapa); // Saída: {MP: [{tPag: Dinheiro, vPag: 100.00}], vTroco: 0.00}
   /// ```
   Map<String, dynamic> toMap() {
-    return {'MP': formas?.map((x) => x.toMap()).toList(), 'vTroco': vTroco};
+    return {
+      'detPag': formas?.map((x) => x.toMap()).toList(),
+      'vTroco': vTroco,
+    };
   }
 
   /// Cria uma instância de `Pgto` a partir de um mapa (`Map<String, dynamic>`).
@@ -48,17 +51,18 @@ class Pgto {
   /// ### Exemplo:
   /// ```dart
   /// Map<String, dynamic> mapa = {
-  ///   'MP': [{'cMP': '01', 'vMP': '100.00'}],
+  ///   'detPag': [{'tPag': '01', 'vPag': '100.00'}],
   ///   'vTroco': '0.00'
   /// };
   /// Pgto pgto = Pgto.fromMap(mapa);
-  /// print(pgto.formas?.first.cMP); // Saída: 01
+  /// print(pgto.formas?.first.tPag); // Saída: Dinheiro
   /// ```
   factory Pgto.fromMap(Map<String, dynamic> map) {
-    final List<MP>? formasPagamento = (map['MP'] ?? map['detPag']) is List
-        ? List<MP>.from((map['MP'] ?? map['detPag']).map((x) => MP.fromMap(x)))
-        : map['MP'] != null || map['detPag'] != null
-        ? [MP.fromMap(map['MP'] ?? map['detPag'])]
+    final detPag = map['detPag'];
+    final List<MP>? formasPagamento = detPag is List
+        ? List<MP>.from(detPag.map((x) => MP.fromMap(x)))
+        : detPag != null
+        ? [MP.fromMap(detPag)]
         : null;
 
     return Pgto(formas: formasPagamento, vTroco: map['vTroco']);
@@ -71,9 +75,9 @@ class Pgto {
   ///
   /// ### Exemplo:
   /// ```dart
-  /// Pgto pgto = Pgto(formas: [MP(cMP: '01', vMP: '100.00')], vTroco: '0.00');
+  /// Pgto pgto = Pgto(formas: [MP(tPag: '01', vPag: '100.00')], vTroco: '0.00');
   /// String json = pgto.toJson();
-  /// print(json); // Saída: {"MP":[{"cMP":"01","vMP":"100.00"}],"vTroco":"0.00"}
+  /// print(json); // Saída: {"detPag":[{"tPag":"01","vPag":"100.00"}],"vTroco":"0.00"}
   /// ```
   String toJson() => json.encode(toMap());
 
@@ -87,7 +91,7 @@ class Pgto {
   ///
   /// ### Exemplo:
   /// ```dart
-  /// String json = '{"MP":[{"cMP":"01","vMP":"100.00"}],"vTroco":"0.00"}';
+  /// String json = '{"detPag":[{"tPag":"01","vPag":"100.00"}],"vTroco":"0.00"}';
   /// Pgto pgto = Pgto.fromJson(json);
   /// print(pgto.vTroco); // Saída: 0.00
   /// ```

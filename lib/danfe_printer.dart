@@ -26,6 +26,9 @@ class DanfePrinter implements IDanfePrinter {
     bool mostrarMoeda = true,
   }) async {
     String moeda = (mostrarMoeda == true) ? r'R$' : '';
+    // Transporte e cobranca sao grupos exclusivos da NF-e (modelo 55).
+    final Transp? transp = danfe is DanfeNFe ? danfe.transp : null;
+    final Cobr? cobr = danfe is DanfeNFe ? danfe.cobr : null;
     final profile = await CapabilityProfile.load();
     final generator = Generator(paperSize, profile);
     List<int> bytes = [];
@@ -57,37 +60,15 @@ class DanfePrinter implements IDanfePrinter {
     bytes += generator.rawBytes([27, 97, 48]);
     bytes += generator.hr();
     bytes += generator.rawBytes([27, 97, 49]);
-    if ((danfe?.tipo ?? TipoDocumento.CFe) == TipoDocumento.CFe) {
-      bytes += generator.text(
-        'Nota Fiscal Eletronica - SAT ',
-        styles: const PosStyles(
-          align: PosAlign.center,
-          bold: true,
-          height: PosTextSize.size1,
-          width: PosTextSize.size1,
-        ),
-      );
-    } else if ((danfe?.tipo ?? TipoDocumento.NFCe) == TipoDocumento.NFCe) {
-      bytes += generator.text(
-        'Nota Fiscal Eletronica - NFC-E ',
-        styles: const PosStyles(
-          align: PosAlign.center,
-          bold: true,
-          height: PosTextSize.size1,
-          width: PosTextSize.size1,
-        ),
-      );
-    } else {
-      bytes += generator.text(
-        'Nota Fiscal Eletronica - NFe ',
-        styles: const PosStyles(
-          align: PosAlign.center,
-          bold: true,
-          height: PosTextSize.size1,
-          width: PosTextSize.size1,
-        ),
-      );
-    }
+    bytes += generator.text(
+      'Nota Fiscal Eletronica - ${danfe?.descricao ?? ''} ',
+      styles: const PosStyles(
+        align: PosAlign.center,
+        bold: true,
+        height: PosTextSize.size1,
+        width: PosTextSize.size1,
+      ),
+    );
     bytes += generator.rawBytes([27, 97, 48]);
     var documentoConsumidor = (danfe?.dados?.dest?.cpf != null)
         ? DanfeUtils.formatCPF(danfe?.dados?.dest?.cpf ?? '')
@@ -359,16 +340,16 @@ class DanfePrinter implements IDanfePrinter {
           styles: const PosStyles(align: PosAlign.right, bold: true),
         ),
       ]);
-      for (MP pagamento in danfe!.dados!.pgto!.formas!) {
+      for (MP pagamento in danfe?.dados?.pgto?.formas ?? []) {
         bytes += generator.row([
           PosColumn(
-            text: DanfeUtils.removeAcentos(pagamento.cMP ?? ''),
+            text: DanfeUtils.removeAcentos(pagamento.tPag ?? ''),
             width: 6,
             styles: const PosStyles(align: PosAlign.left),
           ),
           PosColumn(
             text: DanfeUtils.formatMoneyMilhar(
-              pagamento.vMP ?? '',
+              pagamento.vPag ?? '',
               modeda: 'pt_BR',
               simbolo: moeda,
             ),
@@ -380,30 +361,34 @@ class DanfePrinter implements IDanfePrinter {
       bytes += generator.hr();
     }
 
-    if (danfe?.dados?.total?.valotTotalTributos != null) {
-      if (danfe!.dados!.total!.valotTotalTributos != '0.00') {
-        bytes += generator.row([
-          PosColumn(
-            text: 'Tributos totais incidentes:',
-            width: 9,
-            styles: const PosStyles(bold: false),
+    // Total aproximado do regime antigo mais os totais da reforma tributaria.
+    // Cada linha so e impressa quando tem valor.
+    var imprimiuTributo = false;
+    for (final tributo in _linhasDeTributos(danfe?.dados?.total).entries) {
+      bytes += generator.row([
+        PosColumn(
+          text: tributo.key,
+          width: 9,
+          styles: const PosStyles(bold: false),
+        ),
+        PosColumn(
+          text: DanfeUtils.formatMoneyMilhar(
+            tributo.value,
+            modeda: 'pt_BR',
+            simbolo: moeda,
           ),
-          PosColumn(
-            text: DanfeUtils.formatMoneyMilhar(
-              danfe.dados!.total!.valotTotalTributos ?? '',
-              modeda: 'pt_BR',
-              simbolo: moeda,
-            ),
-            width: 3,
-            styles: const PosStyles(align: PosAlign.right),
-          ),
-        ]);
-        bytes += generator.feed(1);
-      }
+          width: 3,
+          styles: const PosStyles(align: PosAlign.right),
+        ),
+      ]);
+      imprimiuTributo = true;
+    }
+    if (imprimiuTributo) {
+      bytes += generator.feed(1);
     }
 
-    if (danfe?.dados?.transp != null) {
-      if (danfe?.dados?.transp?.transporta?.xNome != null) {
+    if (transp != null) {
+      if (transp.transporta?.xNome != null) {
         bytes += generator.rawBytes([27, 97, 49]);
         bytes += generator.text(
           'TRANSPORTADORA',
@@ -412,17 +397,17 @@ class DanfePrinter implements IDanfePrinter {
 
         bytes += generator.text(
           DanfeUtils.removeAcentos(
-            (danfe?.dados?.transp?.transporta?.xNome ?? ''),
+            (transp.transporta?.xNome ?? ''),
           ),
         );
         bytes += generator.text(
           DanfeUtils.removeAcentos(
-            (danfe?.dados?.transp?.transporta?.xEnder ?? ''),
+            (transp.transporta?.xEnder ?? ''),
           ),
         );
         bytes += generator.text(
           DanfeUtils.removeAcentos(
-            '${danfe?.dados?.transp?.transporta?.xMun ?? ''} ${danfe?.dados?.transp?.transporta?.uf ?? ''}',
+            '${transp.transporta?.xMun ?? ''} ${transp.transporta?.uf ?? ''}',
           ),
         );
         bytes += generator.rawBytes([27, 97, 48]);
@@ -431,24 +416,24 @@ class DanfePrinter implements IDanfePrinter {
       }
     }
 
-    if (danfe?.dados?.cobr != null) {
+    if (cobr != null) {
       bytes += generator.rawBytes([27, 97, 49]);
       bytes += generator.text(
         'COBRANCA',
         styles: const PosStyles(align: PosAlign.center, bold: true),
       );
 
-      bytes += generator.text("Fatura: ${danfe?.dados?.cobr?.fat?.nFat ?? ''}");
+      bytes += generator.text("Fatura: ${cobr.fat?.nFat ?? ''}");
       bytes += generator.text(
-        "Valor Original: ${DanfeUtils.formatMoneyMilhar(danfe?.dados?.cobr?.fat?.vOrig ?? '', modeda: 'pt_BR', simbolo: moeda)}",
+        "Valor Original: ${DanfeUtils.formatMoneyMilhar(cobr.fat?.vOrig ?? '', modeda: 'pt_BR', simbolo: moeda)}",
         styles: const PosStyles(align: PosAlign.center),
       );
       bytes += generator.text(
-        "Valor Liquido: ${DanfeUtils.formatMoneyMilhar(danfe?.dados?.cobr?.fat?.vLiq ?? '', modeda: 'pt_BR', simbolo: moeda)}",
+        "Valor Liquido: ${DanfeUtils.formatMoneyMilhar(cobr.fat?.vLiq ?? '', modeda: 'pt_BR', simbolo: moeda)}",
         styles: const PosStyles(align: PosAlign.center),
       );
       bytes += generator.hr();
-      for (var duplicata in danfe?.dados?.cobr?.dup ?? []) {
+      for (var duplicata in cobr.dup ?? []) {
         bytes += generator.text("Duplicata: ${duplicata.nDup ?? ''}");
         bytes += generator.text(
           "Vencimento: ${DanfeUtils.formatDate(duplicata.dVenc ?? '', dateOnly: true)}",
@@ -469,15 +454,19 @@ class DanfePrinter implements IDanfePrinter {
       DanfeUtils.splitByLength(danfe?.dados?.chaveNota ?? '', 4, ' '),
       styles: const PosStyles(align: PosAlign.center, bold: true),
     );
-    if ((danfe?.tipo ?? TipoDocumento.NFCe) != TipoDocumento.NFe) {
-      bytes += generator.rawBytes([27, 97, 49]);
-      bytes += generator.qrcode(
-        danfe?.qrcodePrinter ?? '',
-        size: QRSize.size4,
-        cor: QRCorrection.M,
-      );
-
-      bytes += generator.rawBytes([27, 97, 48]);
+    // O QR Code existe apenas na NFC-e; a NF-e nao possui infNFeSupl.
+    switch (danfe) {
+      case DanfeNFCe nfce:
+        bytes += generator.rawBytes([27, 97, 49]);
+        bytes += generator.qrcode(
+          nfce.qrcodePrinter ?? '',
+          size: QRSize.size4,
+          cor: QRCorrection.M,
+        );
+        bytes += generator.rawBytes([27, 97, 48]);
+      case DanfeNFe _:
+      case null:
+        break;
     }
     bytes += generator.feed(1);
 
@@ -488,19 +477,6 @@ class DanfePrinter implements IDanfePrinter {
 
       bytes += generator.text(
         'Nota $nnf Serie $serie ',
-        styles: const PosStyles(align: PosAlign.center, bold: true),
-      );
-      bytes += generator.rawBytes([27, 97, 48]);
-
-      bytes += generator.feed(1);
-    }
-
-    if (danfe?.dados?.ide?.nserieSAT != null) {
-      final serie = (danfe?.dados?.ide?.nserieSAT ?? '0').padLeft(3, '0');
-      final nnf = (danfe?.dados?.ide?.nNF ?? '0').padLeft(9, '0');
-      bytes += generator.rawBytes([27, 97, 49]);
-      bytes += generator.text(
-        'Nota $nnf Serie $serie',
         styles: const PosStyles(align: PosAlign.center, bold: true),
       );
       bytes += generator.rawBytes([27, 97, 48]);
@@ -562,6 +538,9 @@ class DanfePrinter implements IDanfePrinter {
     String customFont = 'RobotoMonoRegular',
   }) {
     String moeda = (mostrarMoeda == true) ? 'R\$' : '';
+    // Transporte e cobranca sao grupos exclusivos da NF-e (modelo 55).
+    final Transp? transp = danfe is DanfeNFe ? danfe.transp : null;
+    final Cobr? cobr = danfe is DanfeNFe ? danfe.cobr : null;
     fontName = customFont;
     final helper = JsonPrinterHelper(fontName: customFont);
 
@@ -611,37 +590,15 @@ class DanfePrinter implements IDanfePrinter {
       ),
     );
     danfeJson.add(helper.divider());
-    if ((danfe?.tipo ?? TipoDocumento.CFe) == TipoDocumento.CFe) {
-      danfeJson.add(
-        helper.prepareLine(
-          aligment: 1,
-          bold: true,
-          fontSize: 14,
-          italic: false,
-          content: ('Nota Fiscal Eletronica - SAT '),
-        ),
-      );
-    } else if ((danfe?.tipo ?? TipoDocumento.NFCe) == TipoDocumento.NFCe) {
-      danfeJson.add(
-        helper.prepareLine(
-          aligment: 1,
-          bold: true,
-          fontSize: 14,
-          italic: false,
-          content: ('Nota Fiscal Eletronica - NFC-E '),
-        ),
-      );
-    } else {
-      danfeJson.add(
-        helper.prepareLine(
-          aligment: 1,
-          bold: true,
-          fontSize: 14,
-          italic: false,
-          content: ('Nota Fiscal Eletronica - NFe '),
-        ),
-      );
-    }
+    danfeJson.add(
+      helper.prepareLine(
+        aligment: 1,
+        bold: true,
+        fontSize: 14,
+        italic: false,
+        content: 'Nota Fiscal Eletronica - ${danfe?.descricao ?? ''} ',
+      ),
+    );
     danfeJson.add(
       helper.prepareLine(
         aligment: 0,
@@ -900,7 +857,7 @@ class DanfePrinter implements IDanfePrinter {
             rows: [
               helper.createRow(
                 row: {
-                  'text': DanfeUtils.removeAcentos(pagamento.cMP ?? ''),
+                  'text': DanfeUtils.removeAcentos(pagamento.tPag ?? ''),
                   'alignment': 0,
                 },
                 paperSize: paperSize,
@@ -908,7 +865,7 @@ class DanfePrinter implements IDanfePrinter {
               helper.createRow(
                 row: {
                   'text': DanfeUtils.formatMoneyMilhar(
-                    pagamento.vMP ?? '',
+                    pagamento.vPag ?? '',
                     modeda: 'pt_BR',
                     simbolo: moeda,
                   ),
@@ -923,36 +880,39 @@ class DanfePrinter implements IDanfePrinter {
       danfeJson.add(helper.divider());
     }
 
-    if (danfe?.dados?.total?.valotTotalTributos != null) {
-      if (danfe!.dados!.total!.valotTotalTributos != '0.00') {
-        danfeJson.add(
-          helper.createColumn(
-            paperSize: paperSize,
-            rows: [
-              helper.createRow(
-                row: {'text': 'Tributos totais incidentes:', 'alignment': 0},
-                paperSize: paperSize,
-              ),
-              helper.createRow(
-                row: {
-                  'text': DanfeUtils.formatMoneyMilhar(
-                    danfe.dados!.total!.valotTotalTributos ?? '',
-                    modeda: 'pt_BR',
-                    simbolo: moeda,
-                  ),
-                  'alignment': 2,
-                },
-                paperSize: paperSize,
-              ),
-            ],
-          ),
-        );
-        danfeJson.add(helper.prepareJump(1));
-      }
+    // Mesmas linhas de tributos do caminho ESC/POS.
+    var imprimiuTributo = false;
+    for (final tributo in _linhasDeTributos(danfe?.dados?.total).entries) {
+      danfeJson.add(
+        helper.createColumn(
+          paperSize: paperSize,
+          rows: [
+            helper.createRow(
+              row: {'text': tributo.key, 'alignment': 0},
+              paperSize: paperSize,
+            ),
+            helper.createRow(
+              row: {
+                'text': DanfeUtils.formatMoneyMilhar(
+                  tributo.value,
+                  modeda: 'pt_BR',
+                  simbolo: moeda,
+                ),
+                'alignment': 2,
+              },
+              paperSize: paperSize,
+            ),
+          ],
+        ),
+      );
+      imprimiuTributo = true;
+    }
+    if (imprimiuTributo) {
+      danfeJson.add(helper.prepareJump(1));
     }
 
-    if (danfe?.dados?.transp != null) {
-      if (danfe?.dados?.transp?.transporta?.xNome != null) {
+    if (transp != null) {
+      if (transp.transporta?.xNome != null) {
         danfeJson.add(
           helper.prepareLine(
             aligment: 1,
@@ -964,7 +924,7 @@ class DanfePrinter implements IDanfePrinter {
           helper.prepareLine(
             aligment: 1,
             content: DanfeUtils.removeAcentos(
-              danfe?.dados?.transp?.transporta?.xNome ?? '',
+              transp.transporta?.xNome ?? '',
             ),
           ),
         );
@@ -972,7 +932,7 @@ class DanfePrinter implements IDanfePrinter {
           helper.prepareLine(
             aligment: 1,
             content: DanfeUtils.removeAcentos(
-              danfe?.dados?.transp?.transporta?.xEnder ?? '',
+              transp.transporta?.xEnder ?? '',
             ),
           ),
         );
@@ -980,7 +940,7 @@ class DanfePrinter implements IDanfePrinter {
           helper.prepareLine(
             aligment: 1,
             content: DanfeUtils.removeAcentos(
-              '${danfe?.dados?.transp?.transporta?.xMun ?? ''} ${danfe?.dados?.transp?.transporta?.uf ?? ''}',
+              '${transp.transporta?.xMun ?? ''} ${transp.transporta?.uf ?? ''}',
             ),
           ),
         );
@@ -988,7 +948,7 @@ class DanfePrinter implements IDanfePrinter {
       }
     }
 
-    if (danfe?.dados?.cobr != null) {
+    if (cobr != null) {
       danfeJson.add(
         helper.prepareLine(
           aligment: 1,
@@ -999,25 +959,25 @@ class DanfePrinter implements IDanfePrinter {
       danfeJson.add(
         helper.prepareLine(
           aligment: 1,
-          content: "Fatura: ${danfe?.dados?.cobr?.fat?.nFat ?? ''}",
+          content: "Fatura: ${cobr.fat?.nFat ?? ''}",
         ),
       );
       danfeJson.add(
         helper.prepareLine(
           aligment: 1,
           content:
-              "Valor Original: ${DanfeUtils.formatMoneyMilhar(danfe?.dados?.cobr?.fat?.vOrig ?? '', modeda: 'pt_BR', simbolo: moeda)}",
+              "Valor Original: ${DanfeUtils.formatMoneyMilhar(cobr.fat?.vOrig ?? '', modeda: 'pt_BR', simbolo: moeda)}",
         ),
       );
       danfeJson.add(
         helper.prepareLine(
           aligment: 1,
           content:
-              "Valor Liquido: ${DanfeUtils.formatMoneyMilhar(danfe?.dados?.cobr?.fat?.vLiq ?? '', modeda: 'pt_BR', simbolo: moeda)}",
+              "Valor Liquido: ${DanfeUtils.formatMoneyMilhar(cobr.fat?.vLiq ?? '', modeda: 'pt_BR', simbolo: moeda)}",
         ),
       );
       danfeJson.add(helper.divider());
-      for (var duplicata in danfe?.dados?.cobr?.dup ?? []) {
+      for (var duplicata in cobr.dup ?? []) {
         danfeJson.add(
           helper.prepareLine(
             aligment: 1,
@@ -1056,24 +1016,24 @@ class DanfePrinter implements IDanfePrinter {
         ),
       ),
     );
-    danfeJson.add(
-      helper.prepareQrcode(
-        content: danfe?.qrcodePrinter ?? '',
-        size: 160,
-        level: 'L',
-      ),
-    );
+    // O QR Code existe apenas na NFC-e; a NF-e nao possui infNFeSupl.
+    switch (danfe) {
+      case DanfeNFCe nfce:
+        danfeJson.add(
+          helper.prepareQrcode(
+            content: nfce.qrcodePrinter ?? '',
+            size: 160,
+            level: 'L',
+          ),
+        );
+      case DanfeNFe _:
+      case null:
+        break;
+    }
 
     if (danfe?.dados?.ide?.serie != null) {
       final serie = (danfe?.dados?.ide?.serie ?? '0').padLeft(3, '0');
       final nnf = (danfe?.dados?.ide?.nNF ?? '0').padLeft(9, '0');
-      danfeJson.add(helper.prepareLine(content: 'Nota $nnf Serie $serie '));
-    }
-
-    if (danfe?.dados?.ide?.nserieSAT != null) {
-      final serie = (danfe?.dados?.ide?.nserieSAT ?? '0').padLeft(3, '0');
-      final nnf = (danfe?.dados?.ide?.nNF ?? '0').padLeft(9, '0');
-
       danfeJson.add(helper.prepareLine(content: 'Nota $nnf Serie $serie '));
     }
 
@@ -1102,4 +1062,23 @@ class DanfePrinter implements IDanfePrinter {
     }
     return json.encode(danfeJson);
   }
+}
+
+/// Monta as linhas de tributos do rodape do cupom, na ordem de impressao,
+/// omitindo as que nao tem valor.
+///
+/// Junta o total aproximado do regime antigo (`vTotTrib`) aos totais da
+/// reforma tributaria: IBS, CBS e Imposto Seletivo.
+Map<String, String> _linhasDeTributos(Total? total) {
+  final candidatas = <String, String?>{
+    'Tributos totais incidentes:': total?.valorTotalTributos,
+    'Total IBS:': total?.ibsCbs?.ibs?.vIBS,
+    'Total CBS:': total?.ibsCbs?.cbs?.valor,
+    'Imposto Seletivo:': total?.valorIs,
+  };
+
+  return {
+    for (final entrada in candidatas.entries)
+      if (DanfeUtils.temValor(entrada.value)) entrada.key: entrada.value!,
+  };
 }

@@ -50,7 +50,7 @@ class ObsFisco {
   /// print(obsFisco.xTexto); // Saída: Texto
   /// ```
   factory ObsFisco.fromMap(Map<String, dynamic> map) {
-    return ObsFisco(xTexto: map['xTexto'], sXCampo: map['sXCampo']);
+    return ObsFisco(xTexto: map['xTexto'], sXCampo: map['_xCampo']);
   }
 
   /// Converte a instância atual em uma string JSON.

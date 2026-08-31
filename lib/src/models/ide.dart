@@ -13,20 +13,35 @@ class Ide {
   /// Código numérico da nota.
   String? cNF;
 
-  /// Modelo do documento fiscal.
+  /// Modelo do documento fiscal (`55` para NF-e, `65` para NFC-e).
   String? mod;
 
-  /// Número de série do equipamento SAT.
-  String? nserieSAT;
+  /// Natureza da operação (`natOp`).
+  String? natOp;
+
+  /// Tipo da operação: 0 = entrada, 1 = saída (`tpNF`).
+  String? tpNF;
+
+  /// Local de destino da operação (`idDest`).
+  String? idDest;
+
+  /// Finalidade de emissão da NF-e (`finNFe`).
+  String? finNFe;
+
+  /// Indica operação com consumidor final (`indFinal`).
+  String? indFinal;
+
+  /// Indicador de presença do comprador (`indPres`).
+  String? indPres;
+
+  /// Indicador de intermediador/marketplace (`indIntermed`).
+  String? indIntermed;
+
+  /// Versão do aplicativo emissor (`verProc`).
+  String? verProc;
 
   /// Série do documento fiscal.
   String? serie;
-
-  /// Data de emissão no formato AAAAMMDD.
-  String? dEmi;
-
-  /// Hora de emissão no formato HHMMSS.
-  String? hEmi;
 
   /// Dígito verificador do código da chave de acesso.
   String? cDV;
@@ -37,15 +52,6 @@ class Ide {
   /// CNPJ do emitente.
   String? cNPJ;
 
-  /// Assinatura do AC para o SAT.
-  String? signAC;
-
-  /// Assinatura do QR Code.
-  String? assinaturaQRCODE;
-
-  /// Número do caixa.
-  String? numeroCaixa;
-
   /// Número da nota fiscal.
   String? nNF;
 
@@ -55,8 +61,9 @@ class Ide {
   /// Data e hora de emissão formatada (AAAA-MM-DD HH:MM:SS).
   String? dataEmissao;
 
-  /// Data e hora de saida formatada (AAAA-MM-DD HH:MM:SS).
-
+  /// Data e hora de saída/entrada.
+  ///
+  /// Exclusivo do modelo 55 (NF-e); a NFC-e não possui este campo.
   String? dhSaiEnt;
 
   /// Construtor da classe `Ide`.
@@ -65,34 +72,38 @@ class Ide {
   /// - [cUF]: Código da UF.
   /// - [cNF]: Código numérico da nota.
   /// - [mod]: Modelo do documento fiscal.
-  /// - [nserieSAT]: Número de série do SAT.
+  /// - [natOp]: Natureza da operação.
+  /// - [tpNF]: Tipo da operação.
+  /// - [idDest]: Local de destino da operação.
+  /// - [finNFe]: Finalidade de emissão.
+  /// - [indFinal]: Operação com consumidor final.
+  /// - [indPres]: Indicador de presença do comprador.
+  /// - [indIntermed]: Indicador de intermediador.
+  /// - [verProc]: Versão do aplicativo emissor.
   /// - [serie]: Série do documento fiscal.
-  /// - [dEmi]: Data de emissão (AAAAMMDD).
-  /// - [hEmi]: Hora de emissão (HHMMSS).
   /// - [cDV]: Dígito verificador.
   /// - [tpAmb]: Tipo de ambiente.
   /// - [cNPJ]: CNPJ do emitente.
-  /// - [signAC]: Assinatura do AC.
-  /// - [assinaturaQRCODE]: Assinatura do QR Code.
-  /// - [numeroCaixa]: Número do caixa.
   /// - [nNF]: Número da nota fiscal.
   /// - [dhEmi]: Data e hora de emissão (UTC).
   /// - [dataEmissao]: Data e hora formatadas.
-  /// - [dhSaiEnt]: Data e hora formatadas.
+  /// - [dhSaiEnt]: Data e hora de saída/entrada (somente NF-e).
   Ide({
     this.cUF,
     this.cNF,
     this.mod,
-    this.nserieSAT,
+    this.natOp,
+    this.tpNF,
+    this.idDest,
+    this.finNFe,
+    this.indFinal,
+    this.indPres,
+    this.indIntermed,
+    this.verProc,
     this.serie,
-    this.dEmi,
-    this.hEmi,
     this.cDV,
     this.tpAmb,
     this.cNPJ,
-    this.signAC,
-    this.assinaturaQRCODE,
-    this.numeroCaixa,
     this.nNF,
     this.dhEmi,
     this.dataEmissao,
@@ -108,25 +119,28 @@ class Ide {
   /// ```dart
   /// Ide ide = Ide(cUF: '35', cNF: '12345');
   /// Map<String, dynamic> mapa = ide.toMap();
-  /// print(mapa); // Saída: {cUF: 35, cNF: 12345}
+  /// print(mapa); // Saída: {cUF: 35, cNF: 12345, ...}
   /// ```
   Map<String, dynamic> toMap() {
     return {
       'cUF': cUF,
       'cNF': cNF,
       'mod': mod,
-      'nserieSAT': nserieSAT,
+      'natOp': natOp,
+      'tpNF': tpNF,
+      'idDest': idDest,
+      'finNFe': finNFe,
+      'indFinal': indFinal,
+      'indPres': indPres,
+      'indIntermed': indIntermed,
+      'verProc': verProc,
       'serie': serie,
-      'dEmi': dEmi,
-      'hEmi': hEmi,
       'cDV': cDV,
       'nNF': nNF,
       'dhEmi': dhEmi,
+      'dataEmissao': dataEmissao,
       'tpAmb': tpAmb,
       'cNPJ': cNPJ,
-      'signAC': signAC,
-      'assinaturaQRCODE': assinaturaQRCODE,
-      'numeroCaixa': numeroCaixa,
       'dhSaiEnt': dhSaiEnt,
     };
   }
@@ -146,52 +160,54 @@ class Ide {
   /// print(ide.cUF); // Saída: 35
   /// ```
   factory Ide.fromMap(Map<String, dynamic> map) {
-    Ide ide = Ide(
+    return Ide(
       cUF: map['cUF'],
       cNF: map['cNF'],
       mod: map['mod'],
-      nserieSAT: map['nserieSAT'],
+      natOp: map['natOp'],
+      tpNF: map['tpNF'],
+      idDest: map['idDest'],
+      finNFe: map['finNFe'],
+      indFinal: map['indFinal'],
+      indPres: map['indPres'],
+      indIntermed: map['indIntermed'],
+      verProc: map['verProc'],
       serie: map['serie'],
-      dEmi: map['dEmi'],
-      hEmi: map['hEmi'],
       cDV: map['cDV'],
       tpAmb: map['tpAmb'],
       cNPJ: map['CNPJ'],
-      signAC: map['signAC'],
-      assinaturaQRCODE: map['assinaturaQRCODE'],
-      numeroCaixa: map['numeroCaixa'],
-      nNF: map.containsKey('nCFe') ? map['nCFe'] : map['nNF'],
+      nNF: map['nNF'],
       dhEmi: map['dhEmi'],
+      dataEmissao: _formatarDataEmissao(map['dhEmi']),
       dhSaiEnt: map['dhSaiEnt'],
     );
+  }
 
-    if (map.containsKey('dEmi')) {
-      String parsedDate =
-          ('${(map['dEmi'] as String).substring(0, 4)}-${(map['dEmi'] as String).substring(4, 6)}-${(map['dEmi'] as String).substring(6, 8)}');
-      String parsedHour =
-          '${(map['hEmi'] as String).substring(0, 2)}:${(map['hEmi'] as String).substring(2, 4)}:${(map['hEmi'] as String).substring(4, 6)}';
-      ide.dataEmissao = "$parsedDate $parsedHour";
-    } else if (map.containsKey('dhEmi')) {
-      DateTime data = DateTime.parse((map['dhEmi']));
-      String dataEmissao =
-          "${data.year.toString()}-${data.month.toString().padLeft(2, '0')}-${data.day.toString().padLeft(2, '0')} ${data.hour.toString().padLeft(2, '0')}:${data.minute.toString().padLeft(2, '0')}:${data.second.toString().padLeft(2, '0')}";
-      ide.dataEmissao = dataEmissao;
+  /// Padrão da parte local de `dhEmi` (`AAAA-MM-DDThh:mm:ss`), ignorando o
+  /// fuso declarado no fim da string.
+  static final RegExp _dataHoraLocal = RegExp(
+    r'^(\d{4}-\d{2}-\d{2})T(\d{2}:\d{2}:\d{2})',
+  );
+
+  /// Formata `dhEmi` (ISO 8601) para `AAAA-MM-DD HH:MM:SS`.
+  ///
+  /// Preserva o horário exatamente como declarado no XML. Usar
+  /// `DateTime.parse` converteria para UTC e faria uma nota emitida às
+  /// 10:15 (-03:00) ser impressa como 13:15.
+  ///
+  /// Retorna `null` se a data estiver ausente ou fora do formato esperado.
+  static String? _formatarDataEmissao(String? dhEmi) {
+    if (dhEmi == null) {
+      return null;
     }
-
-    return ide;
+    final match = _dataHoraLocal.firstMatch(dhEmi);
+    return match == null ? null : '${match[1]} ${match[2]}';
   }
 
   /// Converte a instância atual em uma string JSON.
   ///
   /// ### Retorno:
   /// - Uma string JSON contendo os dados de `Ide`.
-  ///
-  /// ### Exemplo:
-  /// ```dart
-  /// Ide ide = Ide(cUF: '35', cNF: '12345');
-  /// String json = ide.toJson();
-  /// print(json); // Saída: {"cUF":"35","cNF":"12345"}
-  /// ```
   String toJson() => json.encode(toMap());
 
   /// Cria uma instância de `Ide` a partir de uma string JSON.
@@ -201,12 +217,5 @@ class Ide {
   ///
   /// ### Retorno:
   /// - Uma instância de `Ide` populada com os valores fornecidos na string JSON.
-  ///
-  /// ### Exemplo:
-  /// ```dart
-  /// String json = '{"cUF":"35","cNF":"12345"}';
-  /// Ide ide = Ide.fromJson(json);
-  /// print(ide.cNF); // Saída: 12345
-  /// ```
   factory Ide.fromJson(String source) => Ide.fromMap(json.decode(source));
 }

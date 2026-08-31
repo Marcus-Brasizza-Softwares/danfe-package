@@ -1,71 +1,89 @@
-// ignore_for_file: public_member_api_docs, sort_constructors_first
 import 'dart:convert';
+
+import 'total_ibs_cbs.dart';
 
 /// A classe `Total` representa os totais de valores em um documento fiscal.
 ///
-/// ### Funcionalidades:
-/// - Suporte à conversão para mapas (`Map<String, dynamic>`) e JSON.
-/// - Cálculo automático de descontos e acréscimos com base na estrutura do mapa.
-/// - Garantia de valores padrão para propriedades não fornecidas.
+/// A maior parte dos valores vem do grupo `<ICMSTot>`, e os da reforma
+/// tributária dos grupos irmãos `<IBSCBSTot>` ([ibsCbs]), `<ISTot>`
+/// ([valorIs]) e `<vNFTot>` ([valorTotalNota]). Todos são mantidos como
+/// `String` no mesmo formato do XML (ex.: `'0.00'`).
 class Total {
-  /// Valor total do documento.
+  /// Valor total dos produtos (`ICMSTot/vProd`).
   String? valorTotal;
 
-  /// Valor total referente ao ICMS.
-  String? valorTotalIcms;
-
-  /// Valor total conforme Lei 12.741/2012 (transparência fiscal).
-  String? valorLei12741;
-
-  /// Valor do desconto aplicado ao documento.
+  /// Valor do desconto aplicado ao documento (`ICMSTot/vDesc`).
   String? desconto;
 
-  /// Valor do acréscimo aplicado ao documento.
+  /// Valor do acréscimo/outras despesas (`ICMSTot/vOutro`).
   String? acrescimo;
 
-  /// Valor total pago.
+  /// Valor total da nota (`ICMSTot/vNF`).
   String? valorPago;
 
-  ///Valor ICMS
+  /// Valor do ICMS (`ICMSTot/vICMS`).
   String? valorIcms;
 
-  ///Valor Frete
+  /// Valor do frete (`ICMSTot/vFrete`).
   String? valorFrete;
 
-  ///Valor Pis
+  /// Valor do PIS (`ICMSTot/vPIS`).
   String? valorPis;
 
-  ///Valor Cofins
+  /// Valor do COFINS (`ICMSTot/vCOFINS`).
   String? valorCofins;
 
-  ///ValorIpi
+  /// Valor do IPI (`ICMSTot/vIPI`).
   String? valorIpi;
 
-  ///Valor Substituicao Tributária
+  /// Valor do ICMS por substituição tributária (`ICMSTot/vST`).
   String? valorSt;
-  //Valor total de tributação
-  String? valotTotalTributos;
 
-  //Valor da base de calculo
+  /// Valor total dos tributos incidentes (`ICMSTot/vTotTrib`).
+  String? valorTotalTributos;
+
+  /// Base de cálculo do ICMS (`ICMSTot/vBC`).
   String? valorBaseCalculo;
 
+  /// Valor do ICMS desonerado (`ICMSTot/vICMSDeson`).
   String? valorIcmsDesonerado;
+
+  /// Base de cálculo do ICMS ST (`ICMSTot/vBCST`).
   String? valorBaseCalculoSt;
+
+  /// Valor do seguro (`ICMSTot/vSeg`).
   String? valorSeguro;
 
-  /// Construtor da classe `Total`.
+  /// Valor do Fundo de Combate à Pobreza (`ICMSTot/vFCP`).
+  String? valorFcp;
+
+  /// Valor do FCP retido por substituição tributária (`ICMSTot/vFCPST`).
+  String? valorFcpSt;
+
+  /// Valor do FCP retido anteriormente por ST (`ICMSTot/vFCPSTRet`).
+  String? valorFcpStRetido;
+
+  /// Valor do Imposto de Importação (`ICMSTot/vII`).
+  String? valorImpostoImportacao;
+
+  /// Valor do IPI devolvido (`ICMSTot/vIPIDevol`).
+  String? valorIpiDevolvido;
+
+  /// Totais de IBS e CBS da reforma tributária (`IBSCBSTot`).
+  TotalIbsCbs? ibsCbs;
+
+  /// Valor total do Imposto Seletivo (`ISTot/vIS`).
+  String? valorIs;
+
+  /// Valor total da nota incluindo IBS, CBS e IS (`vNFTot`).
   ///
-  /// ### Parâmetros:
-  /// - [valorTotal]: Valor total do documento.
-  /// - [valorTotalIcms]: Valor total do ICMS.
-  /// - [valorLei12741]: Valor conforme Lei 12.741/2012.
-  /// - [desconto]: Valor do desconto aplicado.
-  /// - [acrescimo]: Valor do acréscimo aplicado.
-  /// - [valorPago]: Valor total pago.
+  /// Diferente de [valorPago] (`ICMSTot/vNF`), que não considera os tributos
+  /// da reforma.
+  String? valorTotalNota;
+
+  /// Construtor da classe `Total`.
   Total({
     this.valorTotal,
-    this.valorTotalIcms,
-    this.valorLei12741,
     this.desconto,
     this.acrescimo,
     this.valorPago,
@@ -75,29 +93,35 @@ class Total {
     this.valorPis,
     this.valorIpi,
     this.valorSt,
-    this.valotTotalTributos,
+    this.valorTotalTributos,
     this.valorBaseCalculo,
     this.valorBaseCalculoSt,
     this.valorIcmsDesonerado,
     this.valorSeguro,
+    this.valorFcp,
+    this.valorFcpSt,
+    this.valorFcpStRetido,
+    this.valorImpostoImportacao,
+    this.valorIpiDevolvido,
+    this.ibsCbs,
+    this.valorIs,
+    this.valorTotalNota,
   });
 
   /// Converte a instância atual em um mapa (`Map<String, dynamic>`).
   ///
-  /// ### Retorno:
-  /// - Um mapa contendo os valores das propriedades de `Total`.
+  /// Serializa **todos** os campos, de modo que
+  /// `Total.fromJson(total.toJson())` seja um round-trip fiel.
   ///
   /// ### Exemplo:
   /// ```dart
   /// Total total = Total(valorTotal: '100.00', desconto: '5.00');
   /// Map<String, dynamic> mapa = total.toMap();
-  /// print(mapa); // Saída: {valorTotal: 100.00, desconto: 5.00}
+  /// print(mapa['valorTotal']); // Saída: 100.00
   /// ```
   Map<String, dynamic> toMap() {
     return {
       'valorTotal': valorTotal,
-      'valorTotalIcms': valorTotalIcms,
-      'valorLei12741': valorLei12741,
       'desconto': desconto,
       'acrescimo': acrescimo,
       'valorPago': valorPago,
@@ -107,84 +131,71 @@ class Total {
       'valorPis': valorPis,
       'valorIpi': valorIpi,
       'valorSt': valorSt,
+      'valorTotalTributos': valorTotalTributos,
+      'valorBaseCalculo': valorBaseCalculo,
+      'valorBaseCalculoSt': valorBaseCalculoSt,
+      'valorIcmsDesonerado': valorIcmsDesonerado,
+      'valorSeguro': valorSeguro,
+      'valorFcp': valorFcp,
+      'valorFcpSt': valorFcpSt,
+      'valorFcpStRetido': valorFcpStRetido,
+      'valorImpostoImportacao': valorImpostoImportacao,
+      'valorIpiDevolvido': valorIpiDevolvido,
+      'ibsCbs': ibsCbs?.toMap(),
+      'valorIs': valorIs,
+      'valorTotalNota': valorTotalNota,
     };
   }
 
-  /// Cria uma instância de `Total` a partir de um mapa (`Map<String, dynamic>`).
+  /// Cria uma instância de `Total` a partir do grupo `<total>` do XML.
   ///
-  /// ### Parâmetros:
-  /// - [map]: Um mapa contendo as chaves e valores correspondentes às propriedades de `Total`.
-  ///
-  /// ### Retorno:
-  /// - Uma instância de `Total` populada com os valores fornecidos no mapa.
-  ///
-  /// ### Exemplo:
-  /// ```dart
-  /// Map<String, dynamic> mapa = {'valorTotal': '100.00', 'desconto': '5.00'};
-  /// Total total = Total.fromMap(mapa);
-  /// print(total.valorTotal); // Saída: 100.00
-  /// ```
+  /// Aceita tanto o mapa do `<total>` (com `ICMSTot` aninhado) quanto um mapa
+  /// já plano vindo de [toMap], para permitir o round-trip via [fromJson].
   factory Total.fromMap(Map<String, dynamic> map) {
-    final desconto =
-        map['DescAcrEntr']?['vDescSubtot'] ??
-        map['ICMSTot']?['vDesc'] ??
-        '0.00';
+    final icmsTot = map['ICMSTot'];
 
-    final acrescimo =
-        map['DescAcrEntr']?['vAcresSubtot'] ??
-        map['ICMSTot']?['vOutro'] ??
-        '0.00';
+    /// Lê a chave do grupo `ICMSTot`; se ausente, cai no formato plano do
+    /// [toMap] e, por fim, no padrão `'0.00'`.
+    String ler(String tagXml, String campo) =>
+        icmsTot?[tagXml] ?? map[campo] ?? '0.00';
+
+    // Grupos da reforma, irmãos de `ICMSTot` dentro de `<total>`. O formato
+    // Parker devolve string vazia para elemento vazio, daí o `is Map`.
+    final ibsCbsTot = map['IBSCBSTot'] ?? map['ibsCbs'];
+    final isTot = map['ISTot'];
 
     return Total(
-      valorLei12741: map['vCFeLei12741'] ?? '0.00',
-      valorBaseCalculo: map['ICMSTot']?['vBC'] ?? '0.00',
-      valorTotalIcms: map['ICMSTot']?['vICMS'] ?? '0.00',
-      valorIcmsDesonerado: map['ICMSTot']?['vICMSDeson'] ?? '0.00',
-      valorBaseCalculoSt: map['ICMSTot']?['vBCST'] ?? '0.00',
-      valorSt: map['ICMSTot']?['vSt'] ?? '0.00',
-      valorTotal: map['vCFe'] ?? map['ICMSTot']?['vProd'] ?? '0.00',
-      valorFrete: map['ICMSTot']?['vFrete'] ?? '0.00',
-      valorSeguro: map['ICMSTot']?['vSeg'] ?? '0.00',
-      desconto: desconto,
-      valorIpi: map['ICMSTot']?['vIPI'] ?? '0.00',
-      valorPis: map['ICMSTot']?['vPIS'] ?? '0.00',
-      valorCofins: map['ICMSTot']?['vCOFINS'] ?? '0.00',
-      acrescimo: acrescimo,
-      valorPago: map['vCFe'] ?? map['ICMSTot']?['vNF'] ?? '0.00',
-      valorIcms: map['ICMSTot']?['vICMS'] ?? '0.00',
-      valotTotalTributos:
-          map['ICMSTot']?['valotTotalTributos'] ??
-          map['ICMSTot']?['vTotTrib'] ??
-          '0.00',
+      ibsCbs: ibsCbsTot is Map<String, dynamic>
+          ? TotalIbsCbs.fromMap(ibsCbsTot)
+          : null,
+      valorIs: (isTot is Map ? isTot['vIS'] : null) ?? map['valorIs'] ?? '0.00',
+      valorTotalNota: map['vNFTot'] ?? map['valorTotalNota'],
+      valorFcp: ler('vFCP', 'valorFcp'),
+      valorFcpSt: ler('vFCPST', 'valorFcpSt'),
+      valorFcpStRetido: ler('vFCPSTRet', 'valorFcpStRetido'),
+      valorImpostoImportacao: ler('vII', 'valorImpostoImportacao'),
+      valorIpiDevolvido: ler('vIPIDevol', 'valorIpiDevolvido'),
+      valorTotal: ler('vProd', 'valorTotal'),
+      desconto: ler('vDesc', 'desconto'),
+      acrescimo: ler('vOutro', 'acrescimo'),
+      valorPago: ler('vNF', 'valorPago'),
+      valorIcms: ler('vICMS', 'valorIcms'),
+      valorFrete: ler('vFrete', 'valorFrete'),
+      valorPis: ler('vPIS', 'valorPis'),
+      valorCofins: ler('vCOFINS', 'valorCofins'),
+      valorIpi: ler('vIPI', 'valorIpi'),
+      valorSt: ler('vST', 'valorSt'),
+      valorTotalTributos: ler('vTotTrib', 'valorTotalTributos'),
+      valorBaseCalculo: ler('vBC', 'valorBaseCalculo'),
+      valorBaseCalculoSt: ler('vBCST', 'valorBaseCalculoSt'),
+      valorIcmsDesonerado: ler('vICMSDeson', 'valorIcmsDesonerado'),
+      valorSeguro: ler('vSeg', 'valorSeguro'),
     );
   }
 
   /// Converte a instância atual em uma string JSON.
-  ///
-  /// ### Retorno:
-  /// - Uma string JSON contendo os dados de `Total`.
-  ///
-  /// ### Exemplo:
-  /// ```dart
-  /// Total total = Total(valorTotal: '100.00', desconto: '5.00');
-  /// String json = total.toJson();
-  /// print(json); // Saída: {"valorTotal":"100.00","desconto":"5.00"}
-  /// ```
   String toJson() => json.encode(toMap());
 
   /// Cria uma instância de `Total` a partir de uma string JSON.
-  ///
-  /// ### Parâmetros:
-  /// - [source]: Uma string JSON contendo os dados para a classe.
-  ///
-  /// ### Retorno:
-  /// - Uma instância de `Total` populada com os valores fornecidos na string JSON.
-  ///
-  /// ### Exemplo:
-  /// ```dart
-  /// String json = '{"valorTotal":"100.00","desconto":"5.00"}';
-  /// Total total = Total.fromJson(json);
-  /// print(total.desconto); // Saída: 5.00
-  /// ```
   factory Total.fromJson(String source) => Total.fromMap(json.decode(source));
 }

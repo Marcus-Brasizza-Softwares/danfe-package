@@ -1,9 +1,9 @@
 # DANFE
 
-Este package tem como finalidade ajudar no desenvolvimento e manipulação de documentos fiscais eletrônicos, incluindo DANFE (NFC-E, SAT, NFe) e NFSe Nacional, normalizando os objetos e criando buffers de impressão padrão para dispositivos ESC/POS.
+Este package tem como finalidade ajudar no desenvolvimento e manipulação de documentos fiscais eletrônicos, incluindo DANFE (NF-e e NFC-e) e NFSe Nacional, normalizando os objetos e criando buffers de impressão padrão para dispositivos ESC/POS.
 
 ## O que este package faz!
-- [x] **DANFE**: Carrega um XML em string, verifica se é SAT, NFC-E ou NFe e normaliza um objeto com todas as informações em propriedades genéricas
+- [x] **DANFE**: Carrega um XML em string, identifica o modelo (55 = NF-e, 65 = NFC-e) e normaliza um objeto com todas as informações em propriedades genéricas
 - [x] **NFSe Nacional**: Carrega um XML de NFSe Nacional e normaliza um objeto com todas as informações
 - [x] **Impressão**: Cria um buffer em List<int> com layout padrão para impressoras ESC/POS
 - [x] **Conversão**: Transforma documentos em widgets Flutter, imagens ou JSON para impressão
@@ -16,7 +16,7 @@ Este package tem como finalidade ajudar no desenvolvimento e manipulação de do
 
 ---
 
-## 📄 Trabalhando com DANFE (NFC-E, SAT, NFe)
+## 📄 Trabalhando com DANFE (NF-e e NFC-e)
 
 ## Parseando seu XML em um objeto do tipo Danfe
 
@@ -26,6 +26,114 @@ import 'package:danfe/danfe.dart';
 
 Danfe? danfe = DanfeParser.readFromString(xml);
 ```
+
+O tipo devolvido depende do modelo declarado em `<ide><mod>`:
+
+| Modelo | Retorno     | Campos exclusivos              |
+|--------|-------------|--------------------------------|
+| `55`   | `DanfeNFe`  | `transp`, `cobr`               |
+| `65`   | `DanfeNFCe` | `infNFeSupl`, `qrcodePrinter`  |
+
+Modelos não suportados retornam `null` — o parser não tenta adivinhar.
+
+`Danfe` é uma classe `sealed`, então o compilador garante que você tratou os
+dois casos:
+
+```dart
+switch (danfe) {
+  case DanfeNFCe nfce:
+    print(nfce.qrcodePrinter);            // QR Code só existe na NFC-e
+  case DanfeNFe nfe:
+    print(nfe.transp?.transporta?.xNome); // transporte só na NF-e
+  case null:
+    print('XML não reconhecido');
+}
+```
+
+Os dados comuns aos dois modelos continuam em `danfe.dados`
+(`ide`, `emit`, `dest`, `det`, `total`, `pgto`, `infAdic`).
+
+### Suportando um modelo novo
+
+`DanfeParser` resolve o parser por modelo, e o registro é aberto:
+
+```dart
+class MeuParser implements DocumentoParser {
+  @override
+  String get modelo => '99';
+
+  @override
+  Danfe parse(DanfeXmlContext ctx) => DanfeNFe(
+        dados: DadosDanfe.fromMap(ctx.infNFe),
+      );
+}
+
+DanfeParser.registrar(MeuParser());
+```
+
+> **SAT (CFe):** o SAT deixou de ser emitido e o suporte foi removido na
+> versão 3.0.0 — um XML `<CFe>` retorna `null`. Se você ainda precisa dele,
+> fixe a versão `2.x`.
+
+### Reforma tributária (IBS, CBS e Imposto Seletivo)
+
+Os grupos da NT 2025.002 são lidos tanto por item quanto nos totais.
+
+```dart
+final danfe = DanfeParser.readFromString(xml)!;
+
+// --- por item ---
+final imposto = danfe.dados!.det!.first.imposto!;
+
+final ibsCbs = imposto.ibsCbs;                 // grupo <IBSCBS>
+ibsCbs?.cst;                                    // '200'
+ibsCbs?.cClassTrib;                             // '200047'
+ibsCbs?.grupo?.vBC;                             // base de cálculo
+ibsCbs?.grupo?.ibsUf?.aliquota;                 // <gIBSUF><pIBSUF>
+ibsCbs?.grupo?.ibsUf?.reducao?.pAliqEfet;       // <gRed><pAliqEfet>
+ibsCbs?.grupo?.ibsUf?.valor;                    // <gIBSUF><vIBSUF>
+ibsCbs?.grupo?.ibsMun?.valor;                   // <gIBSMun><vIBSMun>
+ibsCbs?.grupo?.cbs?.valor;                      // <gCBS><vCBS>
+ibsCbs?.grupo?.vIBS;                            // IBS total do item
+
+imposto.impostoSeletivo?.vIS;                   // grupo <IS>
+
+// --- totais ---
+final total = danfe.dados!.total!;
+total.ibsCbs?.ibs?.vIBS;                        // <IBSCBSTot><gIBS><vIBS>
+total.ibsCbs?.cbs?.valor;                       // <IBSCBSTot><gCBS><vCBS>
+total.ibsCbs?.mono?.vIBSMono;                   // <gMono>
+total.valorIs;                                  // <ISTot><vIS>
+total.valorTotalNota;                           // <vNFTot>
+```
+
+`gIBSUF`, `gIBSMun` e `gCBS` têm a mesma forma no XML, então os três usam a
+classe `TributoIbsCbs` — acrescentar um grupo novo é aditivo.
+
+Os totais de IBS, CBS e Imposto Seletivo são impressos no rodapé do cupom
+quando têm valor. Itens isentos, que não trazem `<IBSCBS>`, resultam em
+`imposto.ibsCbs == null` sem quebrar o parsing.
+
+**Ainda não modelados:** `gTribRegular`, `gTribCompraGov`, `gIBSCBSMono`,
+`gTransfCred` e `gALCZFMCBS`. A NT segue em revisão e as fontes públicas não
+publicam a lista exaustiva de tags; o que está aqui foi validado contra um
+documento de produção.
+
+### Regime antigo por item
+
+Durante a transição os dois regimes convivem na mesma nota, e o grupo
+`<imposto>` é lido por inteiro. As variantes de CST são achatadas — `grupo`
+guarda o nome do filho no XML:
+
+```dart
+imposto.icms?.grupo;   // 'ICMS00', 'ICMS40', 'ICMSSN102'…
+imposto.icms?.cst;     // CST no regime normal, CSOSN no Simples
+imposto.icms?.vICMS;
+imposto.pis?.grupo;    // 'PISAliq', 'PISNT'…
+imposto.pis?.valor;
+imposto.cofins?.valor;
+```
+
 
 ## Transformando seu objeto em um buffer para impressão (Utilizando o esc_pos_utils)
 

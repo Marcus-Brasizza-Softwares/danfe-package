@@ -23,11 +23,10 @@ class Emit {
   /// Inscrição Municipal do emitente.
   String? iM;
 
-  /// Código de Regime Tributário.
-  String? cRegTrib;
-
-  /// Indicador de rateio do ISSQN.
-  String? indRatISSQN;
+  /// Código de Regime Tributário (`CRT`): 1 = Simples Nacional,
+  /// 2 = Simples Nacional com excesso de sublimite, 3 = Regime Normal,
+  /// 4 = MEI.
+  String? crt;
 
   /// Endereço do emitente.
   EnderEmit? enderEmit;
@@ -40,8 +39,7 @@ class Emit {
   /// - [xFant]: Nome fantasia do emitente.
   /// - [iE]: Inscrição Estadual do emitente.
   /// - [iM]: Inscrição Municipal do emitente.
-  /// - [cRegTrib]: Código de Regime Tributário.
-  /// - [indRatISSQN]: Indicador de rateio do ISSQN.
+  /// - [crt]: Código de Regime Tributário.
   /// - [enderEmit]: Endereço do emitente.
   Emit({
     this.cnpj,
@@ -49,8 +47,7 @@ class Emit {
     this.xFant,
     this.iE,
     this.iM,
-    this.cRegTrib,
-    this.indRatISSQN,
+    this.crt,
     this.enderEmit,
   });
 
@@ -72,8 +69,7 @@ class Emit {
       'xFant': xFant,
       'iE': iE,
       'iM': iM,
-      'cRegTrib': cRegTrib,
-      'indRatISSQN': indRatISSQN,
+      'crt': crt,
       'enderEmit': enderEmit?.toMap(),
     };
   }
@@ -99,8 +95,7 @@ class Emit {
       xFant: map['xFant'],
       iE: map['IE'],
       iM: map['IM'],
-      cRegTrib: map['cRegTrib'],
-      indRatISSQN: map['indRatISSQN'],
+      crt: map['CRT'] ?? map['crt'],
       enderEmit: map['enderEmit'] != null
           ? EnderEmit.fromMap(map['enderEmit'])
           : null,

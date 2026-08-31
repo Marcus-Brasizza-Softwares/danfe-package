@@ -30,7 +30,7 @@ class DanfeUtils {
       symbol: '',
       locale: modeda,
     );
-    final formatterSymbol = formatter.format(double.parse(number));
+    final formatterSymbol = formatter.format(double.tryParse(number) ?? 0);
 
     return '$simbolo${formatterSymbol.trim()}';
   }
@@ -116,8 +116,24 @@ class DanfeUtils {
   /// String resultado = DanfeUtils.formatNumber('1234.567');
   /// print(resultado); // Saída: 1234.57
   /// ```
+  /// Indica se um valor monetário do XML deve ser impresso.
+  ///
+  /// Retorna `true` apenas quando [valor] é numérico e diferente de zero. É
+  /// mais confiável que comparar com a string `'0.00'`, já que o XML também
+  /// traz `'0'`, `'0.0000'` e campos vazios.
+  ///
+  /// ### Exemplo:
+  /// ```dart
+  /// DanfeUtils.temValor('0.0000'); // false
+  /// DanfeUtils.temValor('2.06');   // true
+  /// ```
+  static bool temValor(String? valor) =>
+      (double.tryParse(valor ?? '') ?? 0) != 0;
+
+  /// Valores vazios ou não numéricos resultam em `0` — as impressoras chamam
+  /// este método com `?? ''` e não devem quebrar por um campo ausente.
   static String formatNumber(String number) {
-    return NumberFormat('###.##').format(double.parse(number));
+    return NumberFormat('###.##').format(double.tryParse(number) ?? 0);
   }
 
   /// Formata uma data em formato ISO (YYYY-MM-DD) para um formato legível, com opção de incluir
@@ -138,8 +154,14 @@ class DanfeUtils {
   /// String resultadoData = DanfeUtils.formatDate('2025-01-20', dateOnly: true);
   /// print(resultadoData); // Saída: 20/01/2025
   /// ```
+  /// Retorna uma string vazia quando [date] está vazia ou fora de um formato
+  /// reconhecido — as impressoras chamam este método com `?? ''` e não devem
+  /// quebrar por causa de um campo de data ausente.
   static String formatDate(String date, {bool dateOnly = false}) {
-    DateTime data = DateTime.parse(date);
+    DateTime? data = DateTime.tryParse(date);
+    if (data == null) {
+      return '';
+    }
     var outputFormat = dateOnly
         ? DateFormat('dd/MM/yyyy')
         : DateFormat('dd/MM/yyyy HH:mm:ss');

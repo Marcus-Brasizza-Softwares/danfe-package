@@ -12,7 +12,9 @@ class InfAdic {
   String? infCpl;
 
   /// Observações fiscais associadas ao documento.
-  ObsFisco? obsFisco;
+  ///
+  /// `<obsFisco>` é repetível no layout, por isso é uma lista.
+  List<ObsFisco>? obsFisco;
 
   /// Construtor da classe `InfAdic`.
   ///
@@ -33,7 +35,10 @@ class InfAdic {
   /// print(mapa); // Saída: {infCpl: Informações adicionais aqui, obsFisco: null}
   /// ```
   Map<String, dynamic> toMap() {
-    return {'infCpl': infCpl, 'obsFisco': obsFisco?.toMap()};
+    return {
+      'infCpl': infCpl,
+      'obsFisco': obsFisco?.map((x) => x.toMap()).toList(),
+    };
   }
 
   /// Cria uma instância de `InfAdic` a partir de um mapa (`Map<String, dynamic>`).
@@ -51,10 +56,14 @@ class InfAdic {
   /// print(infAdic.infCpl); // Saída: Informações adicionais aqui
   /// ```
   factory InfAdic.fromMap(Map<String, dynamic> map) {
+    // O formato Parker colapsa uma lista de um único elemento em um mapa.
+    final obsFisco = map['obsFisco'];
     return InfAdic(
       infCpl: map['infCpl'],
-      obsFisco: map['obsFisco'] != null
-          ? ObsFisco.fromMap(map['obsFisco'])
+      obsFisco: obsFisco is List
+          ? List<ObsFisco>.from(obsFisco.map((x) => ObsFisco.fromMap(x)))
+          : obsFisco is Map<String, dynamic>
+          ? [ObsFisco.fromMap(obsFisco)]
           : null,
     );
   }
