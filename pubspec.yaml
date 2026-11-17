@@ -12,10 +12,10 @@ dependencies:
   flutter:
     sdk: flutter
     
-  image: ^4.3.0
-  intl: ^0.20.0
-  printer_gateway: ^0.0.3
-  xml2json: ^6.2.7
+  image: ^4.13.1
+  intl: ^0.20.3
+  printer_gateway: ^0.0.6
+  xml2json: ^6.2.9
 
 dev_dependencies:
   flutter_test:
