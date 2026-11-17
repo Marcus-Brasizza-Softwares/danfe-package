@@ -72,7 +72,7 @@ class InfDPS {
       ...valoresMap ?? {},
     };
     return InfDPS(
-      id: map['@Id'] ?? map['Id'],
+      id: map['_Id'],
       tpAmb: map['tpAmb'],
       dhEmi: map['dhEmi'],
       verAplic: map['verAplic'],

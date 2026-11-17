@@ -1,167 +1,30 @@
-import 'package:xml/xml.dart';
-
+import 'src/core/xml_map.dart';
 import 'src/models/nfse/nfse.dart';
 
-/// A classe `NfseParser` fornece métodos utilitários para processar documentos XML
-/// de NFSe (Nota Fiscal de Serviços Eletrônica) Nacional em objetos `Nfse`.
+/// A classe `NfseParser` converte o XML de uma NFSe (Nota Fiscal de Serviços
+/// Eletrônica) Nacional em um objeto [Nfse].
 ///
-/// Essa classe utiliza a biblioteca `xml` para processar o XML e converte
-/// os dados em instâncias de `Nfse`.
+/// O XML é normalizado por `XmlMap` (`xml2json`, formato Parker com
+/// atributos) — o mesmo pipeline do `DanfeParser` — e o `Map` resultante é
+/// entregue a [Nfse.fromMap].
 ///
-/// A classe é implementada com um construtor privado para garantir que não possa
-/// ser instanciada diretamente, sendo usada apenas para acesso aos métodos estáticos.
+/// A classe é implementada com um construtor privado para garantir que não
+/// possa ser instanciada, sendo usada apenas para acesso aos métodos estáticos.
 class NfseParser {
   /// Construtor privado para impedir a instanciação da classe.
-  ///
-  /// Essa abordagem é comum em classes utilitárias que fornecem apenas métodos estáticos.
   NfseParser._();
 
-  /// Método privado para analisar e converter um documento XML em um objeto `Nfse`.
+  /// Converte um XML de NFSe Nacional em um objeto [Nfse].
   ///
-  /// Este método realiza as seguintes etapas:
-  /// 1. Faz o parse do XML fornecido.
-  /// 2. Verifica se é uma NFSe Nacional (baseado no versaoAplicativo contendo "Nacional").
-  /// 3. Converte a estrutura XML em um Map recursivamente.
-  /// 4. Cria uma instância de `Nfse` a partir do Map.
-  ///
-  /// ### Parâmetros:
-  /// - [xml]: Uma `String` contendo o documento XML que será analisado.
-  ///
-  /// ### Retorno:
-  /// - Um objeto `Nfse` se o XML for compatível (NFSe Nacional).
-  /// - `null` se o XML não for uma NFSe Nacional ou for inválido.
-  static Nfse? _parseNfse(String xml) {
-    try {
-      final document = XmlDocument.parse(xml);
-
-      // Verifica se é NFSe Nacional pelo versaoAplicativo
-      if (!_isNfseNacional(document)) {
-        return null;
-      }
-
-      // Procura o elemento infNFSe primeiro (contém dados gerais da NFSe)
-      final infNFSeElements = document.findAllElements('infNFSe');
-
-      Map<String, dynamic> nfseMap = {};
-
-      // Se encontrou infNFSe, pega os dados dele
-      if (infNFSeElements.isNotEmpty) {
-        final infNFSeElement = infNFSeElements.first;
-        nfseMap = _xmlToMap(infNFSeElement);
-      }
-
-      // Procura o elemento DPS (pode estar dentro de infNFSe ou separado)
-      final dpsElements = document.findAllElements('DPS');
-      if (dpsElements.isNotEmpty) {
-        final dpsElement = dpsElements.first;
-        final dpsMap = _xmlToMap(dpsElement);
-
-        // Mescla os dados do DPS no mapa da NFSe
-        nfseMap.addAll(dpsMap);
-      }
-
-      return Nfse.fromMap(nfseMap);
-    } catch (e) {
-      // Retorna null em caso de erro
-      return null;
-    }
-  }
-
-  /// Verifica se o XML é uma NFSe Nacional.
-  ///
-  /// ### Critérios:
-  /// - Deve ter o campo `versaoAplicativo` contendo "Nacional" (ex: "SefinNacional_1.5.0").
-  ///
-  /// ### Parâmetros:
-  /// - [document]: Documento XML parseado.
-  ///
-  /// ### Retorno:
-  /// - `true` se for NFSe Nacional.
-  /// - `false` caso contrário.
-  static bool _isNfseNacional(XmlDocument document) {
-    try {
-      // Procura pelo elemento versaoAplicativo
-      final versaoElements = document.findAllElements('versaoAplicativo');
-
-      if (versaoElements.isEmpty) {
-        return false;
-      }
-
-      final versao = versaoElements.first.innerText;
-
-      // Verifica se contém "Nacional" (case insensitive)
-      return versao.toLowerCase().contains('nacional');
-    } catch (e) {
-      return false;
-    }
-  }
-
-  /// Converte um elemento XML em um Map recursivamente.
-  ///
-  /// ### Parâmetros:
-  /// - [element]: Elemento XML a ser convertido.
-  ///
-  /// ### Retorno:
-  /// - Um `Map<String, dynamic>` representando a estrutura do XML.
-  static Map<String, dynamic> _xmlToMap(XmlElement element) {
-    final map = <String, dynamic>{};
-
-    // Adiciona os atributos do elemento
-    for (var attribute in element.attributes) {
-      map['@${attribute.name.local}'] = attribute.value;
-    }
-
-    // Agrupa elementos filhos por nome
-    final childrenByName = <String, List<XmlElement>>{};
-
-    for (var node in element.children) {
-      if (node is XmlElement) {
-        final name = node.name.local;
-        childrenByName[name] ??= [];
-        childrenByName[name]!.add(node);
-      }
-    }
-
-    // Processa os elementos filhos
-    for (var entry in childrenByName.entries) {
-      final name = entry.key;
-      final elements = entry.value;
-
-      if (elements.length == 1) {
-        final child = elements.first;
-
-        // Se o elemento tem filhos, processa recursivamente
-        if (child.children.whereType<XmlElement>().isNotEmpty) {
-          map[name] = _xmlToMap(child);
-        } else {
-          // Se não tem filhos, pega o texto do elemento
-          map[name] = child.innerText;
-        }
-      } else {
-        // Se há múltiplos elementos com o mesmo nome, cria uma lista
-        map[name] = elements.map((e) {
-          if (e.children.whereType<XmlElement>().isNotEmpty) {
-            return _xmlToMap(e);
-          } else {
-            return e.innerText;
-          }
-        }).toList();
-      }
-    }
-
-    return map;
-  }
-
-  /// Método público para converter um XML em um objeto `Nfse`.
-  ///
-  /// Esse método serve como uma interface de alto nível para `_parseNfse`,
-  /// encapsulando a lógica de parsing e retornando o objeto resultante.
+  /// Aceita o grupo `<NFSe>` aninhado no envelope ou como a própria raiz. Os
+  /// dados de `infNFSe` (número, emitente, valores calculados) são mesclados
+  /// com os do `DPS` (que traz `infDPS`).
   ///
   /// ### Parâmetros:
   /// - [xml]: Uma `String` contendo o documento XML que será processado.
   ///
   /// ### Retorno:
-  /// - Um objeto `Nfse` se o XML for válido e for uma NFSe Nacional.
+  /// - Um objeto [Nfse] se o XML for válido e for uma NFSe Nacional.
   /// - `null` se o XML não for uma NFSe Nacional ou for malformado.
   ///
   /// ### Exemplo:
@@ -172,17 +35,31 @@ class NfseParser {
   /// }
   /// ```
   static Nfse? readFromString(String xml) {
-    return _parseNfse(xml);
+    try {
+      final envelope = _envelopeNacional(xml);
+      if (envelope == null) {
+        return null;
+      }
+
+      final nfse = XmlMap.asMap(envelope['NFSe']) ?? envelope;
+      final infNFSe = XmlMap.asMap(nfse['infNFSe']);
+      final dps =
+          XmlMap.asMap(infNFSe?['DPS']) ?? XmlMap.asMap(envelope['DPS']);
+
+      return Nfse.fromMap({...?infNFSe, ...?dps});
+    } catch (_) {
+      return null;
+    }
   }
 
-  /// Verifica se um XML é uma NFSe Nacional sem fazer o parse completo.
+  /// Verifica se um XML é uma NFSe Nacional.
   ///
   /// ### Parâmetros:
   /// - [xml]: Uma `String` contendo o documento XML.
   ///
   /// ### Retorno:
   /// - `true` se for NFSe Nacional.
-  /// - `false` caso contrário.
+  /// - `false` caso contrário, inclusive para XML malformado.
   ///
   /// ### Exemplo:
   /// ```dart
@@ -192,75 +69,62 @@ class NfseParser {
   /// ```
   static bool isNfseNacional(String xml) {
     try {
-      final document = XmlDocument.parse(xml);
-      return _isNfseNacional(document);
-    } catch (e) {
+      return _envelopeNacional(xml) != null;
+    } catch (_) {
       return false;
     }
   }
 
-  /// Extrai informações resumidas da NFSe de forma rápida.
+  /// Extrai informações resumidas da NFSe.
   ///
   /// ### Parâmetros:
   /// - [xmlString]: String contendo o XML da NFSe.
   ///
   /// ### Retorno:
-  /// - Um `Map<String, String?>` com informações básicas da NFSe.
+  /// - Um `Map<String, String?>` com informações básicas da NFSe, ou um mapa
+  ///   vazio se o XML não for uma NFSe Nacional válida.
   ///
   /// ### Exemplo:
   /// ```dart
   /// final info = NfseParser.extractBasicInfo(xmlString);
   /// print('Número: ${info['numero']}');
-  /// print('Valor: ${info['valor']}');
+  /// print('Valor: ${info['valorServico']}');
   /// ```
   static Map<String, String?> extractBasicInfo(String xmlString) {
-    try {
-      final document = XmlDocument.parse(xmlString);
-
-      if (!_isNfseNacional(document)) {
-        return {};
-      }
-
-      // Procura infDPS em qualquer profundidade
-      final infDPSElements = document.findAllElements('infDPS');
-      if (infDPSElements.isEmpty) {
-        return {};
-      }
-
-      final infDPS = infDPSElements.first;
-
-      return {
-        'numero': _getElementText(infDPS, 'nDPS'),
-        'serie': _getElementText(infDPS, 'serie'),
-        'dataEmissao': _getElementText(infDPS, 'dhEmi'),
-        'dataCompetencia': _getElementText(infDPS, 'dCompet'),
-        'cnpjPrestador': _getElementText(infDPS, 'CNPJ'),
-        'valorServico': _getElementText(
-          infDPS.findAllElements('vServ').isNotEmpty
-              ? infDPS.findAllElements('vServ').first.parent as XmlElement
-              : infDPS,
-          'vServ',
-        ),
-        'descricaoServico': _getElementText(
-          infDPS.findAllElements('xDescServ').isNotEmpty
-              ? infDPS.findAllElements('xDescServ').first.parent as XmlElement
-              : infDPS,
-          'xDescServ',
-        ),
-      };
-    } catch (e) {
+    final infDPS = readFromString(xmlString)?.infDPS;
+    if (infDPS == null) {
       return {};
     }
+
+    return {
+      'numero': infDPS.nDPS,
+      'serie': infDPS.serie,
+      'dataEmissao': infDPS.dhEmi,
+      'dataCompetencia': infDPS.dCompet,
+      'cnpjPrestador': infDPS.prest?.cnpj,
+      'valorServico': infDPS.valores?.vServPrest?.vServ,
+      'descricaoServico': infDPS.serv?.cServ?.xDescServ,
+    };
   }
 
-  /// Obtém o texto de um elemento filho.
-  static String? _getElementText(XmlElement parent, String childName) {
-    try {
-      final elements = parent.findAllElements(childName);
-      if (elements.isEmpty) return null;
-      return elements.first.innerText;
-    } catch (e) {
+  /// Normaliza o XML e retorna o conteúdo da raiz, ou `null` se não for uma
+  /// NFSe Nacional.
+  ///
+  /// A identificação é feita pelo campo `versaoAplicativo` do envelope, que
+  /// deve conter "Nacional" (ex.: `SefinNacional_1.5.0`, sem diferenciar
+  /// maiúsculas de minúsculas).
+  ///
+  /// Lança exceção se o XML for malformado.
+  static Map<String, dynamic>? _envelopeNacional(String xml) {
+    // O nome da raiz do envelope é livre (ex.: `<root>`), por isso pega o
+    // conteúdo do único elemento raiz em vez de procurar por nome.
+    final envelope = XmlMap.asMap(XmlMap.parse(xml).values.firstOrNull);
+    final versao = envelope?['versaoAplicativo'];
+
+    if (versao is! String || !versao.toLowerCase().contains('nacional')) {
       return null;
     }
+
+    return envelope;
   }
 }

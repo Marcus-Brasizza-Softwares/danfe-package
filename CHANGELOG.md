@@ -4,6 +4,17 @@
 Suporte aos grupos da reforma tributária (NT 2025.002) e ao restante do
 leiaute 4.00 que ainda era descartado. Tudo aditivo sobre a 3.0.0.
 
+### NFSe — mesmo pipeline de parsing do DANFE
+* `NfseParser` deixa de ter um conversor XML → Map próprio e passa a usar o
+  mesmo pipeline do `DanfeParser` (`xml2json`, formato Parker com atributos).
+  A API pública não muda.
+* `InfDPS.id` agora vem do atributo `_Id`, mesma convenção dos modelos de
+  NF-e/NFC-e.
+* `NfseParser.extractBasicInfo`: `cnpjPrestador` passa a vir de `prest/CNPJ`.
+  Antes era o primeiro `<CNPJ>` encontrado em `infDPS` — com prestador pessoa
+  física, isso devolvia o CNPJ do tomador.
+* A dependência direta `xml` foi removida.
+
 ### Reforma tributária — IBS, CBS e Imposto Seletivo
 * **Por item** (`Det.imposto`): novos `IbsCbs` (grupo `IBSCBS`, com `CST`,
   `cClassTrib` e `gIBSCBS`) e `ImpostoSeletivo` (grupo `IS`).

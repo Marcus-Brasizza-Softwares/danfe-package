@@ -1,7 +1,4 @@
-import 'dart:convert';
-
-import 'package:xml2json/xml2json.dart';
-
+import 'src/core/xml_map.dart';
 import 'src/models/danfe.dart';
 import 'src/parser/documento_parser.dart';
 import 'src/parser/nfce_parser.dart';
@@ -10,8 +7,8 @@ import 'src/parser/nfe_parser.dart';
 /// A classe `DanfeParser` converte o XML de um documento fiscal eletrônico em
 /// um objeto [Danfe].
 ///
-/// O XML é normalizado com a biblioteca `xml2json` (formato Parker) e, em
-/// seguida, entregue ao [DocumentoParser] correspondente ao modelo declarado
+/// O XML é normalizado por `XmlMap` (`xml2json`, formato Parker com atributos)
+/// e, em seguida, entregue ao [DocumentoParser] correspondente ao modelo declarado
 /// em `<ide><mod>`:
 ///
 /// | Modelo | Parser        | Resultado   |
@@ -89,43 +86,27 @@ class DanfeParser {
   /// Aceita as duas raízes possíveis: `<nfeProc>` (nota autorizada, com
   /// protocolo) e `<NFe>` (nota avulsa).
   static DanfeXmlContext? _contextoFromXml(String xml) {
-    final transformer = Xml2Json();
-    transformer.parse(xml);
+    final raiz = XmlMap.parse(xml);
 
-    // O formato Parker com atributos prefixa atributos XML com `_`
-    // (ex.: `Id` vira `_Id`), convenção usada por todos os modelos.
-    final Map<String, dynamic> raiz = jsonDecode(
-      transformer.toParkerWithAttrs(),
-    );
-
-    final nfeProc = raiz['nfeProc'];
-    final Map<String, dynamic>? envelope = nfeProc is Map<String, dynamic>
-        ? nfeProc
-        : raiz.containsKey('NFe')
-        ? raiz
-        : null;
+    final envelope =
+        XmlMap.asMap(raiz['nfeProc']) ??
+        (raiz.containsKey('NFe') ? raiz : null);
 
     if (envelope == null) {
       return null;
     }
 
-    final nfe = envelope['NFe'];
-    final Map<String, dynamic> conteudo = nfe is Map<String, dynamic>
-        ? nfe
-        : envelope;
+    final conteudo = XmlMap.asMap(envelope['NFe']) ?? envelope;
 
-    final infNFe = conteudo['infNFe'];
-    if (infNFe is! Map<String, dynamic>) {
+    final infNFe = XmlMap.asMap(conteudo['infNFe']);
+    if (infNFe == null) {
       return null;
     }
 
-    final infNFeSupl = conteudo['infNFeSupl'];
-    final protNFe = envelope['protNFe'];
-
     return DanfeXmlContext(
       infNFe: infNFe,
-      infNFeSupl: infNFeSupl is Map<String, dynamic> ? infNFeSupl : null,
-      protNFe: protNFe is Map<String, dynamic> ? protNFe : null,
+      infNFeSupl: XmlMap.asMap(conteudo['infNFeSupl']),
+      protNFe: XmlMap.asMap(envelope['protNFe']),
     );
   }
 }

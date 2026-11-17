@@ -100,6 +100,35 @@ void main() {
       expect(nfse.infDPS!.tpAmb, equals('1'));
     });
 
+    test('Deve ler o atributo Id do infDPS', () {
+      final nfse = NfseParser.readFromString(xmlNfseNacional);
+
+      expect(
+        nfse!.infDPS!.id,
+        equals('DPS330455724159347900010200002000000000426673'),
+      );
+    });
+
+    test('Deve parsear dados do infNFSe', () {
+      final nfse = NfseParser.readFromString(xmlNfseNacional);
+
+      expect(nfse!.nNFSe, equals('1537'));
+      expect(nfse.cLocIncid, equals('3304557'));
+    });
+
+    test('isNfseNacional distingue NFSe Nacional de outros XMLs', () {
+      expect(NfseParser.isNfseNacional(xmlNfseNacional), isTrue);
+      expect(NfseParser.isNfseNacional(xmlNaoNfse), isFalse);
+    });
+
+    test('XML malformado não lança exceção', () {
+      const malformado = '<root><versaoAplicativo>Nacional</root>';
+
+      expect(NfseParser.readFromString(malformado), isNull);
+      expect(NfseParser.isNfseNacional(malformado), isFalse);
+      expect(NfseParser.extractBasicInfo(malformado), isEmpty);
+    });
+
     test('Deve parsear dados do prestador', () {
       final nfse = NfseParser.readFromString(xmlNfseNacional);
 

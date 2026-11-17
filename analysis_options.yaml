@@ -33,6 +33,12 @@ analyzer:
     - test/**       # Exclude test folder if you don't want to analyze test files.
     - lib/generated_plugin_registrant.dart # Example of excluding a specific file.
     - lib/some_other_folder/**
+    - android/**
+    - ios/**
+    - web/**
+    - windows/**
+    - macos/**
+    - linux/**
   
 # You can also define specific settings for errors, warnings, and information.
 # For example, treat certain rules as errors or warnings.
